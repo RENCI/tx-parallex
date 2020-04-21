@@ -81,7 +81,7 @@ def generate_tasks(spec, data, top={}):
         name = spec["name"]
         mod = import_module(spec["mod"])
         func = getattr(module, spec["func"])
-        dependencies = {k : top[v] for k, v in spec["depends_on"].items()}
+        dependencies = {k : top[v] for k, v in spec.get("depends_on", {}).items()}
         task = Task(mod, func)
         top[name] = task.task_id
         yield task, dependencies
