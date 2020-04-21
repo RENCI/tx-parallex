@@ -1,4 +1,4 @@
-from multiprocessing import Manager
+from multiprocessing import Manager, Queue
 from uuid import uuid1
 
 
@@ -71,13 +71,32 @@ class DependentQueue:
     def __init__(self, ready_queue):
         self.node_map = NodeMap(ready_queue)
 
-    def put(self, o, depends_on={}):
-        node = Node(o, depends_on=depends_on)
+    def put(self, o, job_id=None, depends_on={}):
+        node = Node(o, node_id=job_id, depends_on=depends_on)
         self.node_map.add_node(node)
         return node.node_id
 
     def get(self, *args, **kwargs):
         node, result = self.node_map.get_next_ready_node(*args, **kwargs)
-        return node.get(), result, lambda x : self.node_map.complete_node(node.node_id, x)
+        return node.get(), result, node.node_id
+
+    def complete(self, node_id, x=None):
+        self.node_map.complete_node(node_id, x)
+
+
+class SubQueue:
+    def __init__(self, queue):
+        self.queue = queue
+        self.subqueue = Queue()
+
+    def put(self, o):
+        self.subqueue.put(o)
+
+    def get(self, *args, **kwargs):
+        node, result = self.node_map.get_next_ready_node(*args, **kwargs)
+        return node.get(), result, node.node_id
+
+    def complete(self, node_id, x=None):
+        self.queue.complete(node_id, x)
         
         

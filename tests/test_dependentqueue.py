@@ -15,15 +15,15 @@ def test_dep():
         n, r, f = dq.get(block=False)
         assert n == 3
         assert r == {}
-        f(6)
+        dq.complete(f, 6)
         n, r, f = dq.get(block=False)
         assert n == 2
         assert r == {"c": 6}
-        f(5)
+        dq.complete(f, 5)
         n, r, f = dq.get(block=False)
         assert n == 1
         assert r == {"a": 5, "b": 6}
-        f(4)
+        dq.complete(f, 4)
         with pytest.raises(Empty):
             dq.get(block=False)
     
