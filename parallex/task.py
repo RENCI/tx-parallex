@@ -38,8 +38,8 @@ class EndOfQueue(AbsTask):
 def dispatch(job_queue, worker_queues):
     n = len(worker_pipes)
     while True:
-        jrf = job_queue.get()
-        job, result, jid = jrf
+        jri = job_queue.get()
+        job, result, jid = jri
         if job.dispatch_mode == DispatchMode.BROADCAST:
             for p in worker_queues:
                 p.put(job)
@@ -50,11 +50,11 @@ def dispatch(job_queue, worker_queues):
             for off in range(n):
                 i = base + off
                 if not worker_queues[i].full():
-                    worker_queues[i].put(jrf)
+                    worker_queues[i].put(jri)
                     done = True
                     break
             if not done:
-                worker_queues[base].put(jrf)
+                worker_queues[base].put(jri)
 
     
 def work_on(sub_queue):
