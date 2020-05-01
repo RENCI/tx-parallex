@@ -1,7 +1,8 @@
-== Introduction
+# `parallex`
+## Introduction
 A queue with dependencies
 
-=== Usage
+## Usage
 
 ```
 from parallex import run
@@ -9,11 +10,11 @@ from parallex import run
 ret = run(number_of_workers = 4, specf = "spec.yml", dataf = "data.yml")
 ```
 
-=== Spec
-Each task is given a dict called data.
+## Spec
+Each task is given a dict called `data`.
 
-==== `map` ====
-The `map` task read a list `coll` from the data an apply a list of subtasks to the members of the list. The members will be assigned to `var` in the data passed to those tasks
+### `map`
+The `map` task read a list `coll` from `data` an apply a list of subtasks to the members of the list. The members will be assigned to `var` in the data passed to those tasks
 
 ```
 type: map
@@ -22,9 +23,9 @@ var: <variable name>
 sub: <subtasks>
 ```
 
-==== `top` ====
+### `top`
 
-The `top` task toplogically sort subtasks. It read the `depends_on` property of subtasks, which has format:
+The `top` task toplogically sort subtasks. It reads the `depends_on` property of subtasks, which has format:
 
 ```
 <task name>: [<param>, ..., <param>]
@@ -33,9 +34,9 @@ The `top` task toplogically sort subtasks. It read the `depends_on` property of 
 ```
 The result of a task will be assign the parameters that it maps to.
 
-==== `python` ====
+### `python`
 
-The `python` task runs a python function. it read parameters from data
+The `python` task runs a python function. It reads parameters from `data`.
 ```
 type: python
 name: <name>
@@ -46,6 +47,7 @@ depends_on: <dependencies>
 ```
 
 
-=== Data ===
+## Data
+
 data can be arbitrary yaml
 
