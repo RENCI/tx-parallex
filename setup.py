@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="parallex", # Replace with your own username
+    name="tx-parallex",
     version="0.0.1",
     author="Hao Xu",
     author_email="xuhao@renci.org",
@@ -12,7 +12,11 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/RENCI/tx-parallex",
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=["tests", "tests.*"]),
+    install_requires=[
+        "autorepr==0.3.0",
+        "more-itertools==8.2.0"
+    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

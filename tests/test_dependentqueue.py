@@ -9,8 +9,8 @@ def test_dep():
         dq = DependentQueue(manager)
 
         id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={"c": id3})
-        id1 = dq.put(1, depends_on={"a": id2,"b": id3})
+        id2 = dq.put(2, depends_on={id3: ["c"]})
+        id1 = dq.put(1, depends_on={id2: ["a"], id3: ["b"]})
         
         n, r, f = dq.get(block=False)
         assert n == 3
