@@ -5,6 +5,8 @@ from enum import Enum
 from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
+from multiprocessing import Manager, Process
+from .dependentqueue import DependentQueue, SubQueue
 
 
 class DispatchMode(Enum):
@@ -42,16 +44,17 @@ class EndOfQueue(AbsTask):
 
         
 def dispatch(job_queue, worker_queues):
-    n = len(worker_pipes)
+    n = len(worker_queues)
     while True:
         jri = job_queue.get()
         job, result, jid = jri
+        print(f"dispatching {jri}")
         if job.dispatch_mode == DispatchMode.BROADCAST:
             for p in worker_queues:
-                p.put(job)
+                p.put(jri)
             job_queue.complete(jid)
         elif job.dispatch_mode == DispatchMode.RANDOM:
-            base = random(n)
+            base = choice(range(n))
             done = False
             for off in range(n):
                 i = base + off
@@ -61,6 +64,8 @@ def dispatch(job_queue, worker_queues):
                     break
             if not done:
                 worker_queues[base].put(jri)
+        if isinstance(job, EndOfQueue):
+            break
 
     
 def work_on(sub_queue):
@@ -100,27 +105,30 @@ def sort_tasks(subs):
     return subs_sorted
 
 
-def generate_tasks(spec, data, top={}):
+def generate_tasks(spec, data, top={}, ret_prefix=[]):
     if spec["type"] == "map":
         print("map")
         coll_name = spec["coll"]
         var = spec["var"]
         coll = data[coll_name]
-        for row in coll:
+        for i, row in enumerate(coll):
             data2 = {**data, var:row}
-            yield from roundrobin(*(generate_tasks(subspec, data2) for subspec in spec["sub"]))
+            yield from roundrobin(*(generate_tasks(subspec, data2, ret_prefix=ret_prefix + [i]) for subspec in spec["sub"]))
     elif spec["type"] == "top":
         print("top")
         subs = spec["sub"]
         subs_sorted = sort_tasks(subs)
         top = {}
         for sub in subs_sorted:
-            yield from generate_tasks(sub, data, top=top)
+            yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix)
     elif spec["type"] == "python":
         print("python")
         name = spec["name"]
         mod = spec["mod"]
         func = spec["func"]
+        ret = spec.get("ret")
+        if ret is not None:
+            ret = ".".join(ret_prefix + [ret])
         params = spec.get("params", [])
         dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
         if "task_id" in data:
@@ -129,7 +137,7 @@ def generate_tasks(spec, data, top={}):
         task = Task(mod, func, **args)
         top[name] = task.task_id
         print("add task:", task.task_id, "depends_on", dependencies)
-        yield task, dependencies
+        yield task, ret, dependencies
     else:
         raise RuntimeError(f'unsupported spec type {spec["type"]}')
 
@@ -137,10 +145,32 @@ def generate_tasks(spec, data, top={}):
 def enqueue(spec, data, job_queue):
     job_ids = {}
     for what in generate_tasks(spec, data):
-        job, dependencies = what
+        job, ret, dependencies = what
         job_id = job.task_id
-        job_queue.put(job, job_id=job_id, depends_on=dependencies)
+        job_queue.put(job, job_id=job_id, ret=ret, depends_on=dependencies)
         job_ids[job_id] = job_id
 
     job_queue.put(EndOfQueue(), depends_on={job_id: [] for job_id in job_ids})
+    
+
+def start(number_of_workers, spec, data):
+    with Manager() as manager:
+        job_queue = DependentQueue(manager)
+        enqueue(spec, data, job_queue)
+        subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
+        processes = []
+        for subqueue in subqueues:
+            p = Process(target=work_on, args=[subqueue])
+            p.start()
+            processes.append(p)
+        p = Process(target=dispatch, args=[job_queue, subqueues])
+        p.start()
+        processes.append(p)
+        for p in processes:
+            p.join()
+        return job_queue.get_results()
+
+
+        
+        
     

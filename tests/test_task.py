@@ -1,7 +1,7 @@
 from multiprocessing import Manager
 from queue import Empty
 import pytest
-from parallex.task import enqueue, EndOfQueue
+from parallex.task import enqueue, EndOfQueue, start
 from parallex.dependentqueue import DependentQueue
 
 def test_enqueue():
@@ -86,4 +86,38 @@ def test_enqueue_dependent():
         n, r, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
+
+def f(x):
+    return x+1
+
+def test_start():
+    with Manager() as manager:
+        spec = {
+            "type":"top",
+            "sub": [{
+                "type": "python",
+                "name": "a",
+                "mod": "tests.test_task",
+                "func": "f",
+                "ret": "x",
+                "depends_on": {"b": ["x"]}
+            }, {
+                "type": "python",
+                "name": "b",
+                "mod": "tests.test_task",
+                "func": "f",
+                "depends_on": {"c": ["x"]}
+            }, {
+                "type": "python",
+                "name": "c",
+                "mod": "tests.test_task",
+                "func": "f",
+                "params": ["x"]
+            }]
+        }
+        data = {"x": 1}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": 4}
+
 
