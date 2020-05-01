@@ -25,14 +25,21 @@ sub: <subtasks>
 
 ### `top`
 
-The `top` task toplogically sorts subtasks. It reads the `depends_on` property of subtasks, which has format:
+The `top` task toplogically sorts subtasks. 
+
+```
+type: top
+sub: <subtasks>
+```
+
+It reads the `depends_on` property of subtasks, which has format:
 
 ```
 <task name>: [<param>, ..., <param>]
 ...
 <task name>: [<param>, ..., <param>]
 ```
-The result of a task will be assign the parameters that it maps to.
+The result of a task will be assigned to the parameters that it maps to.
 
 ### `python`
 
