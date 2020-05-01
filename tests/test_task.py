@@ -1,7 +1,8 @@
 from multiprocessing import Manager
 from queue import Empty
 import pytest
-from parallex.task import enqueue, EndOfQueue, start
+from parallex import start
+from parallex.task import enqueue, EndOfQueue
 from parallex.dependentqueue import DependentQueue
 
 def test_enqueue():

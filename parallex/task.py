@@ -5,7 +5,7 @@ from enum import Enum
 from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
-from multiprocessing import Manager, Process
+from multiprocessing import Manager
 from .dependentqueue import DependentQueue, SubQueue
 
 
@@ -152,24 +152,6 @@ def enqueue(spec, data, job_queue):
 
     job_queue.put(EndOfQueue(), depends_on={job_id: [] for job_id in job_ids})
     
-
-def start(number_of_workers, spec, data):
-    with Manager() as manager:
-        job_queue = DependentQueue(manager)
-        enqueue(spec, data, job_queue)
-        subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
-        processes = []
-        for subqueue in subqueues:
-            p = Process(target=work_on, args=[subqueue])
-            p.start()
-            processes.append(p)
-        p = Process(target=dispatch, args=[job_queue, subqueues])
-        p.start()
-        processes.append(p)
-        for p in processes:
-            p.join()
-        return job_queue.get_results()
-
 
         
         

@@ -14,8 +14,9 @@ setuptools.setup(
     url="https://github.com/RENCI/tx-parallex",
     packages=setuptools.find_packages(exclude=["tests", "tests.*"]),
     install_requires=[
-        "autorepr==0.3.0",
-        "more-itertools==8.2.0"
+        "autorepr>=0.3.0",
+        "more-itertools>=8.2.0",
+        "pyyaml>=5.3.1"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
