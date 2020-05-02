@@ -31,7 +31,7 @@ The `map` task reads a list `coll` from `data` and applies a list of subtasks to
 type: map
 coll: <variable name for collection>
 var: <variable name>
-sub: <subtasks>
+sub: <subtask>
 ```
 
 ### `top`
