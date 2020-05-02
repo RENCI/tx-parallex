@@ -13,6 +13,17 @@ ret = run(number_of_workers = 4, specf = "spec.yml", dataf = "data.yml")
 ## Spec
 Each task is given a dict called `data`.
 
+### `let`
+The `let` task sets `data`
+```
+type: let
+obj: 
+  <var>: <value>
+  ...
+  <var>: <value>
+sub: <subtasks>
+
+
 ### `map`
 The `map` task reads a list `coll` from `data` and applies a list of subtasks to each member of the list. The members will be assigned to `var` in `data` passed to those tasks
 

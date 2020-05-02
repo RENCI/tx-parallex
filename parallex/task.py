@@ -106,14 +106,19 @@ def sort_tasks(subs):
 
 
 def generate_tasks(spec, data, top={}, ret_prefix=[]):
-    if spec["type"] == "map":
+    if spec["type"] == "let":
+        print("let")
+        obj = spec["obj"]
+        sub = spec["sub"]
+        data2 = {**data, **obj}
+        yield from generate_tasks(sub, data2, top={}, ret_prefix=ret_prefix)
+    elif spec["type"] == "map":
         print("map")
         coll_name = spec["coll"]
         var = spec["var"]
         coll = data[coll_name]
-        for i, row in enumerate(coll):
-            data2 = {**data, var:row}
-            yield from roundrobin(*(generate_tasks(subspec, data2, ret_prefix=ret_prefix + [i]) for subspec in spec["sub"]))
+        subspec = spec["sub"]
+        yield from roundrobin(*(generate_tasks(subspec, data2, top={}, ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
     elif spec["type"] == "top":
         print("top")
         subs = spec["sub"]

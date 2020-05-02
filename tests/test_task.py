@@ -11,7 +11,7 @@ def test_enqueue():
             "type":"map",
             "coll":"inputs",
             "var":"y",
-            "sub": [{
+            "sub": {
                 "type":"top",
                 "sub": [{
                     "type": "python",
@@ -22,7 +22,7 @@ def test_enqueue():
                         "y": ["x"]
                     }
                 }]
-            }]
+            }
         }
         data = {
             "inputs": [1, 2, 3]
@@ -90,8 +90,37 @@ def test_enqueue_dependent():
         print(n)
         assert isinstance(n, EndOfQueue)
 
+        
+def identity(x):
+    return x
+
+
+def test_let():
+    with Manager() as manager:
+        spec = {
+            "type":"let",
+            "obj": {
+                "y": 1
+            },
+            "sub": {
+                "type": "python",
+                "name": "a",
+                "mod": "tests.test_task",
+                "func": "identity",
+                "params": {
+                    "y": ["x"]
+                },
+                "ret": "x"
+            }
+        }
+        data = {}
+        ret = start(3, spec, data)
+        assert ret == {"x": 1}
+
+        
 def f(x):
     return x+1
+
 
 def test_start():
     with Manager() as manager:
