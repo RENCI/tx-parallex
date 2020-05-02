@@ -10,7 +10,7 @@ def test_enqueue():
         spec = {
             "type":"map",
             "coll":"inputs",
-            "var":"x",
+            "var":"y",
             "sub": [{
                 "type":"top",
                 "sub": [{
@@ -18,7 +18,9 @@ def test_enqueue():
                     "name": "a",
                     "mod": "tests.test_task",
                     "func": "f",
-                    "params": ["x"]
+                    "params": {
+                        "y": ["x"]
+                    }
                 }]
             }]
         }
@@ -113,10 +115,12 @@ def test_start():
                 "name": "c",
                 "mod": "tests.test_task",
                 "func": "f",
-                "params": ["x"]
+                "params": {
+                    "y": ["x"]
+                }
             }]
         }
-        data = {"x": 1}
+        data = {"y": 1}
         
         ret = start(3, spec, data)
         assert ret == {"x": 4}

@@ -52,7 +52,7 @@ func: <function>
 params: <parameters>
 depends_on: <dependencies>
 ```
-
+`params` are the same format as `depends_on`
 
 ## Data
 

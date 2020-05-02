@@ -129,11 +129,11 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         ret = spec.get("ret")
         if ret is not None:
             ret = ".".join(ret_prefix + [ret])
-        params = spec.get("params", [])
+        params = spec.get("params", {})
         dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
-        args = {k: v for k, v in data.items() if k in params}
+        args = {v: data[k] for k, vs in params.items() for v in vs}
         task = Task(mod, func, **args)
         top[name] = task.task_id
         print("add task:", task.task_id, "depends_on", dependencies)
