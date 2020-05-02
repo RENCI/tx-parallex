@@ -21,8 +21,8 @@ obj:
   <var>: <value>
   ...
   <var>: <value>
-sub: <subtasks>
-
+sub: <subtask>
+```
 
 ### `map`
 The `map` task reads a list `coll` from `data` and applies a list of subtasks to each member of the list. The members will be assigned to `var` in `data` passed to those tasks
