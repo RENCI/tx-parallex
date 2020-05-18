@@ -1,7 +1,6 @@
 from multiprocessing import Manager, Queue
 from uuid import uuid1
 
-
 class Node:
     def __init__(self, o, node_id=None, ret=None, depends_on={}):
         """
