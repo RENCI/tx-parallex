@@ -46,6 +46,7 @@ def test_enqueue():
         print(n)
         assert isinstance(n, EndOfQueue)
 
+
 def test_enqueue_dependent():
     with Manager() as manager:
         spec = {
