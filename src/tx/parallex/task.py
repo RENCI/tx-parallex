@@ -6,10 +6,13 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return
+import logging
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class DispatchMode(Enum):
     RANDOM = 0
@@ -25,7 +28,7 @@ class Task(AbsTask):
     def __init__(self, mod, func, *args, task_id=None, **kwargs):
         super().__init__(DispatchMode.RANDOM)
         self.task_id = task_id if task_id is not None else str(uuid4())
-        print("self.task_id =", self.task_id)
+        logger.info(f"self.task_id = {self.task_id}")
         self.mod = mod
         self.func = func
         self.args = args
@@ -50,7 +53,7 @@ def dispatch(job_queue, worker_queues):
     while True:
         jri = job_queue.get()
         job, result, jid = jri
-        print(f"dispatching {jri}")
+        logger.info(f"dispatching {jri}")
         if job.dispatch_mode == DispatchMode.BROADCAST:
             for p in worker_queues:
                 p.put(jri)
@@ -104,9 +107,9 @@ def sort_tasks(subs):
         updated = False
         for sub in copy:
             name = sub["name"]
-            print("name =", name)
+            logger.info(f"name = {name}")
             depends_on = sub.get("depends_on", {})
-            print("depends_on =", depends_on)
+            logger.info(f"depends_on = {depends_on}")
             if len(set(depends_on.keys()) - visited) == 0:
                 visited.add(name)
                 subs_sorted.append(sub)
@@ -137,8 +140,15 @@ def python_to_spec(py):
     t = parse(py)
     body = t.body
     apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
-    assigns = [stmt for stmt in body if not isinstance(stmt.value, Call)]
-    top_spec = python_to_top_spec(apps)
+    returns = [stmt for stmt in body if isinstance(stmt, Return)]
+    assigns = [stmt for stmt in body if not isinstance(stmt.value, Call) and not isinstance(stmt, Return)]
+    if len(returns) >= 1:
+        ret = returns[0].value
+        ret_dict = {python_ast_to_value(k): v.id for k, v in zip(ret.keys, ret.values)}
+    else:
+        ret_dict = {}
+    
+    top_spec = python_to_top_spec(apps, ret_dict)
     if len(assigns) == 0:
         return top_spec
     else:
@@ -151,19 +161,17 @@ def python_to_spec(py):
         }
 
 
-def python_to_top_spec(body):
+def python_to_top_spec(body, ret_dict):
     return {
         "type": "top",
-        "sub": [python_to_spec_in_top(stmt) for stmt in body]
+        "sub": [python_to_spec_in_top(stmt, ret_dict) for stmt in body]
     }
 
 
-def python_to_spec_in_top(stmt):
+def python_to_spec_in_top(stmt, ret_dict):
     targets = stmt.targets
     name = targets[0].id
-    retoper = {
-        "ret": targets[1].id
-    } if len(targets) > 1 else {}
+    ret = [k for k, v in ret_dict.items() if v == name]
     app = stmt.value
     fqfunc = app.func
     keywords = app.keywords
@@ -180,49 +188,45 @@ def python_to_spec_in_top(stmt):
             inv_func[v] = ks + [k]
         return inv_func
     mod = to_mod(fqfunc.value)
-    dependencies = [(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)]
-    params = [(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)]
+    params = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)])
+    dependencies = inverse_function([(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)])
+
     return {
         "type": "python",
         "name": name,
         "mod": mod,
         "func": func,
-        "params": inverse_function(params),
-        "depends_on": inverse_function(dependencies),
-        **retoper
+        "params": params,
+        "depends_on": dependencies,
+        "ret": ret
     }
         
 
 def generate_tasks(spec, data, top={}, ret_prefix=[]):
     ty = spec.get("type")
     if ty == "let":
-        print("let")
         obj = spec["obj"]
         sub = spec["sub"]
         data2 = {**data, **obj}
         yield from generate_tasks(sub, data2, top={}, ret_prefix=ret_prefix)
     elif ty == "map":
-        print("map")
         coll_name = spec["coll"]
         var = spec["var"]
         coll = data[coll_name]
         subspec = spec["sub"]
         yield from roundrobin(*(generate_tasks(subspec, data2, top={}, ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
     elif ty == "top":
-        print("top")
         subs = spec["sub"]
         subs_sorted = sort_tasks(subs)
         top = {}
         for sub in subs_sorted:
             yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix)
     elif ty == "python":
-        print("python")
         name = spec["name"]
         mod = spec["mod"]
         func = spec["func"]
-        ret = spec.get("ret")
-        if ret is not None:
-            ret = ".".join(map(str, ret_prefix + [ret]))
+        ret = spec.get("ret", [])
+        fqret = list(map(lambda ret: ".".join(map(str, ret_prefix + [ret])), ret))
         params = spec.get("params", {})
         dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
         if "task_id" in data:
@@ -235,8 +239,8 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         args = {v: data[k] for k, vs in params.items() for v in vs}
         task = Task(mod, func, **args)
         top[name] = task.task_id
-        print("add task:", task.task_id, "depends_on", dependencies)
-        yield task, ret, dependencies
+        logger.info(f"add task: {task.task_id} depends_on {dependencies}")
+        yield task, fqret, dependencies
     elif ty == "dsl":
         py = spec.get("python")
         spec2 = python_to_spec(py)

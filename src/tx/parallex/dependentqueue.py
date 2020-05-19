@@ -1,5 +1,9 @@
 from multiprocessing import Manager, Queue
 from uuid import uuid1
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Node:
     def __init__(self, o, node_id=None, ret=None, depends_on={}):
@@ -53,7 +57,7 @@ class NodeMap:
             
             self.nodes[node.node_id] = node
             self.depends[node.node_id] = node.depends_on
-            print(f"add_node: {node.node_id} depends_on {node.depends_on}")
+            logger.info(f"add_node: {node.node_id} depends_on {node.depends_on}")
             for node_id in node.depends_on.keys():
                 self.refs[node_id] = self.refs.get(node_id, []) + [node.node_id]
             if len(node.depends_on) == 0:
@@ -61,11 +65,11 @@ class NodeMap:
 
     def complete_node(self, node_id, result):
         with self.lock:
-            print(f"complete_node: {node_id} complete")
+            logger.info(f"complete_node: {node_id} complete")
             node = self.nodes[node_id]
-            ret_name = node.ret
+            ret_names = node.ret
             refs = self.refs.get(node_id)
-            print(f"complete_node: refs = {refs}")
+            logger.info(f"complete_node: refs = {refs}")
             if refs is not None:
                 for ref in refs:
                     refdep = dict(self.depends[ref])
@@ -73,16 +77,16 @@ class NodeMap:
                     del refdep[node_id]
                     self.depends[ref] = refdep
                     refresults = {**self.results.get(ref, {}), **{k: result for k in ks}}
-                    print(f"complete_node: ref = {ref}, refresults = {refresults}")
+                    logger.info(f"complete_node: ref = {ref}, refresults = {refresults}")
                     self.results[ref] = refresults
                     if len(refdep) == 0:
                         task = (self.nodes[ref], refresults)
-                        print(f"complete_node: ref = {ref}, len(refdep) == 0, task = {task}")
+                        logger.info(f"complete_node: ref = {ref}, len(refdep) == 0, task = {task}")
                         self.ready_queue.put(task)
                         del self.depends[ref]
                         del self.results[ref]
                 del self.refs[node_id]
-            if ret_name is not None:
+            for ret_name in ret_names:
                 # terminal node
                 self.outputs[ret_name] = result
             del self.nodes[node_id]
@@ -95,14 +99,14 @@ class DependentQueue:
     def __init__(self, manager):
         self.node_map = NodeMap(manager)
 
-    def put(self, o, job_id=None, ret=None, depends_on={}):
+    def put(self, o, job_id=None, ret=[], depends_on={}):
         node = Node(o, node_id=job_id, ret=ret, depends_on=depends_on)
         self.node_map.add_node(node)
         return node.node_id
 
     def get(self, *args, **kwargs):
         node, result = self.node_map.get_next_ready_node(*args, **kwargs)
-        print(f"DependentQueue.get: node = {node}, result = {result}")
+        logger.info(f"DependentQueue.get: node = {node}, result = {result}")
         return node.get(), result, node.node_id
 
     def complete(self, node_id, x=None):

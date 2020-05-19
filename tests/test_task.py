@@ -115,7 +115,7 @@ def test_let():
                 "params": {
                     "y": ["x"]
                 },
-                "ret": "x"
+                "ret": ["x"]
             }
         }
         data = {}
@@ -137,7 +137,7 @@ def test_start():
                 "name": "a",
                 "mod": "tests.test_task",
                 "func": "f",
-                "ret": "x",
+                "ret": ["x"],
                 "depends_on": {"b": ["x"]}
             }, {
                 "type": "python",
@@ -175,7 +175,7 @@ def test_map_start():
                     "name": "a",
                     "mod": "tests.test_task",
                     "func": "f",
-                    "ret": "x",
+                    "ret": ["x"],
                     "depends_on": {"b": ["x"]}
                 }, {
                     "type": "python",
@@ -206,9 +206,10 @@ def test_dsl_start():
         spec = {
             "type":"dsl",
             "python": """
-a = x = tests.test_task.f(x=~b)
+a = tests.test_task.f(x=~b)
 b = tests.test_task.f(x=~c)
-c = tests.test_task.f(x=y)"""
+c = tests.test_task.f(x=y)
+return {"x": a}"""
         }
         data = {"y": 1}
         
@@ -232,7 +233,8 @@ def test_python_to_spec1():
                 ]
             },
             "depends_on": {
-            }
+            },
+            "ret": []
         }]
     }
 
@@ -253,12 +255,15 @@ def test_python_to_spec2():
                 "var": [
                     "param"
                 ]
-            }
+            },
+            "ret": []
         }]       
     }
 
 def test_python_to_spec3():
-    py = "a = ret1 = mod1.mod2.func(param=~var)"
+    py = """
+a = mod1.mod2.func(param=~var)
+return {'ret1': a}"""
     spec = python_to_spec(py)
     assert spec == {
         "type":"top",
@@ -274,7 +279,7 @@ def test_python_to_spec3():
                     "param"
                 ]
             },
-            "ret": "ret1"
+            "ret": ["ret1"]
         }]
     }
 
