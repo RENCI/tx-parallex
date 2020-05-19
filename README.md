@@ -62,6 +62,7 @@ mod: <module>
 func: <function>
 params: <parameters>
 depends_on: <dependencies>
+ret: <returns>
 ```
 `params` are the same format as `depends_on`
 
