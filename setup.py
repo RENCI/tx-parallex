@@ -1,28 +1,38 @@
+from glob import glob
+from os.path import basename, splitext
 import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-setuptools.setup(
-    name="tx-parallex",
-    version="0.0.2",
-    author="Hao Xu",
-    author_email="xuhao@renci.org",
-    description="A job queue with data dependencies",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/RENCI/tx-parallex",
-    packages=setuptools.find_packages(exclude=["tests", "tests.*"]),
-    install_requires=[
-        "autorepr==0.3.0",
-        "more-itertools==8.2.0",
-        "pyyaml==5.3.1",
-        "tx-functional>=0.0.3"
-    ],
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-    ],
-    python_requires='>=3.6',
-)
+    setuptools.setup(
+        name="tx-parallex",
+        version="0.0.6",
+        license="MIT",
+        author="Hao Xu",
+        author_email="xuhao@renci.org",
+        description="A job queue with data dependencies",
+        long_description=long_description,
+        long_description_content_type="text/markdown",
+        url="https://github.com/RENCI/tx-parallex",
+        packages=setuptools.find_packages("src", exclude=["tests", "tests.*"]),
+        package_dir={
+            "": "src"
+        },
+        py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
+        install_requires=[
+            "autorepr==0.3.0",
+            "more-itertools==8.2.0",
+            "pyyaml==5.3.1",
+            "tx-functional>=0.0.11"
+        ],
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "License :: OSI Approved :: MIT License",
+            "Operating System :: OS Independent",
+        ],
+        python_requires='>=3.6',
+    )
+
+
+
