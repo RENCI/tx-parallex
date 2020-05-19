@@ -204,10 +204,10 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         yield task, ret, dependencies
     elif ty == "dsl":
         py = spec.get("python")
-        subs = python_to_spec(py)
+        subs = python_to_specs(py)
         yield from generate_tasks({
             "type": "top",
-            "subs": subs
+            "sub": subs
         }, data, top=top, ret_prefix=ret_prefix)
     else:
         raise RuntimeError(f'unsupported spec type {ty}')

@@ -161,6 +161,22 @@ def test_start():
         assert ret == {"x": Right(4)}
 
 
+def test_dsl_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type":"dsl",
+            "python": """
+a = x = tests.test_task.f(x=~b)
+b = tests.test_task.f(x=~c)
+c = tests.test_task.f(x=y)"""
+        }
+        data = {"y": 1}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(4)}
+
+
 def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
     spec = python_to_specs(py)
