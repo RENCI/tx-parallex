@@ -6,7 +6,7 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 
@@ -122,64 +122,75 @@ def sort_tasks(subs):
     return subs_sorted
 
 
+def python_ast_to_value(expr):
+    if isinstance(expr, List):
+        return [python_ast_to_value(elt) for elt in expr.elts]
+    elif isinstance(expr, Dict):
+        return {python_ast_to_value(k): python_ast_to_value(v) for k, v in zip(expr.keys, expr.values)}
+    elif isinstance(expr, Constant):
+        return expr.value
+    else:
+        raise RuntimeError(f"cannot convert ast {expr} to value")
+
+    
 def python_to_spec(py):
     t = parse(py)
     body = t.body
-    return python_to_top_spec(body)
+    apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
+    assigns = [stmt for stmt in body if not isinstance(stmt.value, Call)]
+    top_spec = python_to_top_spec(apps)
+    if len(assigns) == 0:
+        return top_spec
+    else:
+        return {
+            "type": "let",
+            "obj": {
+                assign.targets[0].id: python_ast_to_value(assign.value) for assign in assigns
+            },
+            "sub": top_spec
+        }
 
 
 def python_to_top_spec(body):
     return {
         "type": "top",
-        "sub": python_to_specs(body)
+        "sub": [python_to_spec_in_top(stmt) for stmt in body]
     }
 
 
-def python_to_specs(stmts):
-    if len(stmts) == 0:
-        return []
-    stmt, *rest = stmts
+def python_to_spec_in_top(stmt):
     targets = stmt.targets
     name = targets[0].id
     retoper = {
         "ret": targets[1].id
     } if len(targets) > 1 else {}
     app = stmt.value
-    if isinstance(app, Call):
-        fqfunc = app.func
-        keywords = app.keywords
-        func = fqfunc.attr
-        def to_mod(value):
-            if isinstance(value, Name):
-                return value.id
-            else:
-                return f"{to_mod(value.value)}.{value.attr}"
-        def inverse_function(func):
-            inv_func = {}
-            for k, v in func:
-                ks = inv_func.get(v, [])
-                inv_func[v] = ks + [k]
-            return inv_func
-        mod = to_mod(fqfunc.value)
-        dependencies = [(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)]
-        params = [(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)]
-        return [{
-            "type": "python",
-            "name": name,
-            "mod": mod,
-            "func": func,
-            "params": inverse_function(params),
-            "depends_on": inverse_function(dependencies),
-            **retoper
-        }, *python_to_specs(rest)]
-    elif isinstance(app, Constant):
-        return [{
-            "type": "let",
-            "obj": {
-                name: app.value
-            },
-            "sub": python_to_top_spec(rest)
-        }]
+    fqfunc = app.func
+    keywords = app.keywords
+    func = fqfunc.attr
+    def to_mod(value):
+        if isinstance(value, Name):
+            return value.id
+        else:
+            return f"{to_mod(value.value)}.{value.attr}"
+    def inverse_function(func):
+        inv_func = {}
+        for k, v in func:
+            ks = inv_func.get(v, [])
+            inv_func[v] = ks + [k]
+        return inv_func
+    mod = to_mod(fqfunc.value)
+    dependencies = [(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)]
+    params = [(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)]
+    return {
+        "type": "python",
+        "name": name,
+        "mod": mod,
+        "func": func,
+        "params": inverse_function(params),
+        "depends_on": inverse_function(dependencies),
+        **retoper
+    }
         
 
 def generate_tasks(spec, data, top={}, ret_prefix=[]):

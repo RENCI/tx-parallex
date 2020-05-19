@@ -243,17 +243,14 @@ def test_python_to_spec4():
     py = "a = 1"
     spec = python_to_spec(py)
     assert spec == {
-        "type": "top",
-        "sub": [{
-            "type":"let",
-            "obj": {
-                "a": 1
-            },
-            "sub": {
-                "type": "top",
-                "sub": []
-            }
-        }]
+        "type":"let",
+        "obj": {
+            "a": 1
+        },
+        "sub": {
+            "type": "top",
+            "sub": []
+        }
     }
 
 
