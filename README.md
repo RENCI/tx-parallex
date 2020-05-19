@@ -66,6 +66,36 @@ ret: <returns>
 ```
 `params` are the same format as `depends_on`
 
+### `dsl`
+A dsl block contains a subset of python.
+```
+type: dsl
+python: <python>
+```
+
+Available syntax:
+
+#### assignment
+```
+<var> = <const> | <list> | <dict>
+```
+This translates to `let`.
+
+#### function application
+```
+<var> = <module>.<func>(<param>=[~]<arg>, ...)
+```
+This translate to `python`.
+where `<var>` is `name`
+and dependencies are marked by `~` in front of `<arg>`
+
+#### return
+```
+return <dict>
+```
+this translates to `ret` in `python`.
+
+
 ## Data
 
 data can be arbitrary yaml
