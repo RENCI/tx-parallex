@@ -4,8 +4,10 @@ import pytest
 from tx.parallex import start
 from tx.parallex.task import enqueue, EndOfQueue
 from tx.parallex.dependentqueue import DependentQueue
+from tx.functional.either import Left, Right
 
 def test_enqueue():
+    print("test_enqueue")
     with Manager() as manager:
         spec = {
             "type":"map",
@@ -48,6 +50,7 @@ def test_enqueue():
 
 
 def test_enqueue_dependent():
+    print("test_enqueue_dependent")
     with Manager() as manager:
         spec = {
             "type":"top",
@@ -97,6 +100,7 @@ def identity(x):
 
 
 def test_let():
+    print("test_let")
     with Manager() as manager:
         spec = {
             "type":"let",
@@ -116,7 +120,7 @@ def test_let():
         }
         data = {}
         ret = start(3, spec, data)
-        assert ret == {"x": 1}
+        assert ret == {"x": Right(1)}
 
         
 def f(x):
@@ -124,6 +128,7 @@ def f(x):
 
 
 def test_start():
+    print("test_start")
     with Manager() as manager:
         spec = {
             "type":"top",
@@ -153,6 +158,6 @@ def test_start():
         data = {"y": 1}
         
         ret = start(3, spec, data)
-        assert ret == {"x": 4}
+        assert ret == {"x": Right(4)}
 
 

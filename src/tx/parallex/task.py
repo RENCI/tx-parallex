@@ -6,6 +6,7 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
+from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 
 
@@ -86,9 +87,9 @@ def work_on(sub_queue):
                         resultv[k] = v.value
                 if not error:                    
                     resultj = job.run(resultv)
-                    if not ininstance(resultj, Either):
+                    if not isinstance(resultj, Either):
                         resultj = Right(resultj)
-            except Error as e:
+            except Exception as e:
                 resultj = Left(str(e))
             sub_queue.complete(jid, resultj)
     
