@@ -161,6 +161,45 @@ def test_start():
         assert ret == {"x": Right(4)}
 
 
+def test_map_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type": "map",
+            "coll": "z",
+            "var": "y",
+            "sub": {
+                "type":"top",
+                "sub": [{
+                    "type": "python",
+                    "name": "a",
+                    "mod": "tests.test_task",
+                    "func": "f",
+                    "ret": "x",
+                    "depends_on": {"b": ["x"]}
+                }, {
+                    "type": "python",
+                    "name": "b",
+                    "mod": "tests.test_task",
+                    "func": "f",
+                    "depends_on": {"c": ["x"]}
+                }, {
+                    "type": "python",
+                    "name": "c",
+                    "mod": "tests.test_task",
+                    "func": "f",
+                    "params": {
+                        "y": ["x"]
+                    }
+                }]
+            }
+        }
+        data = {"z": [1, 2, 3]}
+        
+        ret = start(3, spec, data)
+        assert ret == {"0.x": Right(4), "1.x": Right(5), "2.x": Right(6)}
+
+
 def test_dsl_start():
     print("test_start")
     with Manager() as manager:

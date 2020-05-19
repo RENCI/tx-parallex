@@ -222,7 +222,7 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         func = spec["func"]
         ret = spec.get("ret")
         if ret is not None:
-            ret = ".".join(ret_prefix + [ret])
+            ret = ".".join(map(str, ret_prefix + [ret]))
         params = spec.get("params", {})
         dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
         if "task_id" in data:
