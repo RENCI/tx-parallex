@@ -2,7 +2,7 @@ from multiprocessing import Manager
 from queue import Empty
 import pytest
 from tx.parallex import start
-from tx.parallex.task import enqueue, EndOfQueue, python_to_specs
+from tx.parallex.task import enqueue, EndOfQueue, python_to_spec
 from tx.parallex.dependentqueue import DependentQueue
 from tx.functional.either import Left, Right
 
@@ -179,7 +179,7 @@ c = tests.test_task.f(x=y)"""
 
 def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
-    spec = python_to_specs(py)
+    spec = python_to_spec(py)
     assert spec == {
         "type":"top",
         "sub": [{
@@ -200,7 +200,7 @@ def test_python_to_spec1():
 
 def test_python_to_spec2():
     py = "a = mod1.mod2.func(param=~var)"
-    spec = python_to_specs(py)
+    spec = python_to_spec(py)
     assert spec == {
         "type":"top",
         "sub": [{
@@ -220,7 +220,7 @@ def test_python_to_spec2():
 
 def test_python_to_spec3():
     py = "a = ret1 = mod1.mod2.func(param=~var)"
-    spec = python_to_specs(py)
+    spec = python_to_spec(py)
     assert spec == {
         "type":"top",
         "sub": [{
@@ -238,3 +238,22 @@ def test_python_to_spec3():
             "ret": "ret1"
         }]
     }
+
+def test_python_to_spec4():
+    py = "a = 1"
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "top",
+        "sub": [{
+            "type":"let",
+            "obj": {
+                "a": 1
+            },
+            "sub": {
+                "type": "top",
+                "sub": []
+            }
+        }]
+    }
+
+
