@@ -1,6 +1,6 @@
 from multiprocessing import Manager, Process
-from parallex.dependentqueue import DependentQueue, SubQueue
-from parallex.task import enqueue, work_on, dispatch
+from tx.parallex.dependentqueue import DependentQueue, SubQueue
+from tx.parallex.task import enqueue, work_on, dispatch
 import yaml
 
 def run(number_of_workers, specf, dataf):
