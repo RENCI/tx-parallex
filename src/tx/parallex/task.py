@@ -6,6 +6,7 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
+from ast import parse, Call, Name, UnaryOp
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 
@@ -121,28 +122,70 @@ def sort_tasks(subs):
     return subs_sorted
 
 
+def python_to_specs(py):
+    t = parse(py)
+    body = t.body
+    return [python_to_spec(stmt) for stmt in body]
+
+
+def python_to_spec(body):
+    targets = body.targets
+    name = targets[0].id
+    retoper = {
+        "ret": targets[1].id
+    } if len(targets) > 1 else {}
+    app = body.value
+    fqfunc = app.func
+    keywords = app.keywords
+    func = fqfunc.attr
+    def to_mod(value):
+        if isinstance(value, Name):
+            return value.id
+        else:
+            return f"{to_mod(value.value)}.{value.attr}"
+    def inverse_function(func):
+        inv_func = {}
+        for k, v in func:
+            ks = inv_func.get(v, [])
+            inv_func[v] = ks + [k]
+        return inv_func
+    mod = to_mod(fqfunc.value)
+    dependencies = [(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)]
+    params = [(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)]
+    return {
+        "type": "python",
+        "name": name,
+        "mod": mod,
+        "func": func,
+        "params": inverse_function(params),
+        "depends_on": inverse_function(dependencies),
+        **retoper
+    }
+    
+
 def generate_tasks(spec, data, top={}, ret_prefix=[]):
-    if spec["type"] == "let":
+    ty = spec.get("type")
+    if ty == "let":
         print("let")
         obj = spec["obj"]
         sub = spec["sub"]
         data2 = {**data, **obj}
         yield from generate_tasks(sub, data2, top={}, ret_prefix=ret_prefix)
-    elif spec["type"] == "map":
+    elif ty == "map":
         print("map")
         coll_name = spec["coll"]
         var = spec["var"]
         coll = data[coll_name]
         subspec = spec["sub"]
         yield from roundrobin(*(generate_tasks(subspec, data2, top={}, ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
-    elif spec["type"] == "top":
+    elif ty == "top":
         print("top")
         subs = spec["sub"]
         subs_sorted = sort_tasks(subs)
         top = {}
         for sub in subs_sorted:
             yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix)
-    elif spec["type"] == "python":
+    elif ty == "python":
         print("python")
         name = spec["name"]
         mod = spec["mod"]
@@ -159,8 +202,13 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         top[name] = task.task_id
         print("add task:", task.task_id, "depends_on", dependencies)
         yield task, ret, dependencies
+    elif ty == "dsl":
+        py = spec.get("python")
+        specs = python_to_spec(py)
+        for spec2 in specs:
+            yield from generate_tasks(spec2, data, top=top, ret_prefix=ret_prefix)
     else:
-        raise RuntimeError(f'unsupported spec type {spec["type"]}')
+        raise RuntimeError(f'unsupported spec type {ty}')
 
 
 def enqueue(spec, data, job_queue):
