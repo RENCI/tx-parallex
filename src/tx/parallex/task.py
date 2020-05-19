@@ -125,7 +125,10 @@ def sort_tasks(subs):
 def python_to_specs(py):
     t = parse(py)
     body = t.body
-    return [python_to_spec(stmt) for stmt in body]
+    return {
+        "type": "top",
+        "sub": [python_to_spec(stmt) for stmt in body]
+    }
 
 
 def python_to_spec(body):
@@ -197,6 +200,11 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
+
+        for k in params.keys():
+            if not k in data:
+                raise RuntimeError(f"undefined data {k}")
+            
         args = {v: data[k] for k, vs in params.items() for v in vs}
         task = Task(mod, func, **args)
         top[name] = task.task_id
@@ -204,11 +212,8 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         yield task, ret, dependencies
     elif ty == "dsl":
         py = spec.get("python")
-        subs = python_to_specs(py)
-        yield from generate_tasks({
-            "type": "top",
-            "sub": subs
-        }, data, top=top, ret_prefix=ret_prefix)
+        spec2 = python_to_specs(py)
+        yield from generate_tasks(spec2, data, top=top, ret_prefix=ret_prefix)
     else:
         raise RuntimeError(f'unsupported spec type {ty}')
 

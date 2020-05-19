@@ -180,52 +180,61 @@ c = tests.test_task.f(x=y)"""
 def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
     spec = python_to_specs(py)
-    assert spec == [{
-        "type": "python",
-        "name": "a",
-        "mod": "mod1.mod2",
-        "func": "func",
-        "params": {
-            "arg": [
-                "param"
-            ]
-        },
-        "depends_on": {
-        }
-    }]
+    assert spec == {
+        "type":"top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "mod1.mod2",
+            "func": "func",
+            "params": {
+                "arg": [
+                    "param"
+                ]
+            },
+            "depends_on": {
+            }
+        }]
+    }
 
 
 def test_python_to_spec2():
     py = "a = mod1.mod2.func(param=~var)"
     spec = python_to_specs(py)
-    assert spec == [{
-        "type": "python",
-        "name": "a",
-        "mod": "mod1.mod2",
-        "func": "func",
-        "params": {
-        },
-        "depends_on": {
-            "var": [
-                "param"
-            ]
-        }
-    }]
+    assert spec == {
+        "type":"top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "mod1.mod2",
+            "func": "func",
+            "params": {
+            },
+            "depends_on": {
+                "var": [
+                    "param"
+                ]
+            }
+        }]       
+    }
 
 def test_python_to_spec3():
     py = "a = ret1 = mod1.mod2.func(param=~var)"
     spec = python_to_specs(py)
-    assert spec == [{
-        "type": "python",
-        "name": "a",
-        "mod": "mod1.mod2",
-        "func": "func",
-        "params": {
-        },
-        "depends_on": {
-            "var": [
-                "param"
-            ]
-        },
-        "ret": "ret1"
-    }]
+    assert spec == {
+        "type":"top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "mod1.mod2",
+            "func": "func",
+            "params": {
+            },
+            "depends_on": {
+                "var": [
+                    "param"
+                ]
+            },
+            "ret": "ret1"
+        }]
+    }
