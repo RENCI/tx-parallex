@@ -1,7 +1,7 @@
 from multiprocessing import Manager
 from queue import Queue, Empty
 import pytest
-from parallex.dependentqueue import DependentQueue, Node
+from tx.parallex.dependentqueue import DependentQueue, Node
 
 
 def test_dep():
