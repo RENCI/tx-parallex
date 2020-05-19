@@ -115,7 +115,7 @@ def sort_tasks(subs):
         if updated:
             copy = copy2
         else:
-            raise RuntimeError("cycle in depedencies graph")
+            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {list(map(lambda x:x['name'], copy))}")
 
     print(subs_sorted)
     return subs_sorted
