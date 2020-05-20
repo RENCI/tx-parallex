@@ -142,13 +142,14 @@ def python_to_spec(py):
     apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
     returns = [stmt for stmt in body if isinstance(stmt, Return)]
     assigns = [stmt for stmt in body if not isinstance(stmt.value, Call) and not isinstance(stmt, Return)]
+    dep_set = set(app.targets[0].id for app in apps)
     if len(returns) >= 1:
         ret = returns[0].value
         ret_dict = {python_ast_to_value(k): v.id for k, v in zip(ret.keys, ret.values)}
     else:
         ret_dict = {}
     
-    top_spec = python_to_top_spec(apps, ret_dict)
+    top_spec = python_to_top_spec(apps, ret_dict, dep_set)
     if len(assigns) == 0:
         return top_spec
     else:
@@ -161,14 +162,14 @@ def python_to_spec(py):
         }
 
 
-def python_to_top_spec(body, ret_dict):
+def python_to_top_spec(body, ret_dict, dep_set):
     return {
         "type": "top",
-        "sub": [python_to_spec_in_top(stmt, ret_dict) for stmt in body]
+        "sub": [python_to_spec_in_top(stmt, ret_dict, dep_set) for stmt in body]
     }
 
 
-def python_to_spec_in_top(stmt, ret_dict):
+def python_to_spec_in_top(stmt, ret_dict, dep_set):
     targets = stmt.targets
     name = targets[0].id
     ret = [k for k, v in ret_dict.items() if v == name]
@@ -188,8 +189,8 @@ def python_to_spec_in_top(stmt, ret_dict):
             inv_func[v] = ks + [k]
         return inv_func
     mod = to_mod(fqfunc.value)
-    params = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if isinstance(keyword.value, Name)])
-    dependencies = inverse_function([(keyword.arg, keyword.value.operand.id) for keyword in keywords if isinstance(keyword.value, UnaryOp)])
+    params = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if keyword.value.id not in dep_set])
+    dependencies = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if keyword.value.id in dep_set])
 
     return {
         "type": "python",
