@@ -83,11 +83,10 @@ This translates to `let`.
 
 #### function application
 ```
-<var> = <module>.<func>(<param>=[~]<arg>, ...)
+<var> = <module>.<func>(<param>=<arg>, ...)
 ```
 This translate to `python`.
 where `<var>` is `name`
-and dependencies are marked by `~` in front of `<arg>`
 
 #### return
 ```
