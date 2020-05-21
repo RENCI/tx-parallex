@@ -1,0 +1,114 @@
+{
+    "anyOf": [
+	{
+	    "properties": {
+		"type": {
+		    "enum": ["map"]
+		},
+		"coll": {
+		    "type": "string"
+		},
+		"var": {
+		    "type": "string"
+		},
+		"sub": {
+		    "$ref": "#"
+		}
+	    },
+	    "required": ["type", "coll", "var", "sub"],
+	    "additionalProperties": false
+	}, {
+	    "properties": {
+		"type": {
+		    "enum": ["let"]
+		},
+		"obj": {
+		    "type": "object"
+		},
+		"sub": {
+		    "$ref": "#"
+		}
+	    },
+	    "required": ["type", "obj", "sub"],
+	    "additionalProperties": false
+	}, {
+	    "properties": {
+		"type": {
+		    "enum": ["top"]
+		},
+		"sub": {
+		    "type": "array",
+		    "items": {
+			"$ref": "#"
+		    }
+		}
+	    },
+	    "required": ["sub"],
+	    "additionalProperties": false
+	}, {
+	    "properties": {
+		"type": {
+		    "enum": ["python"]
+		},
+		"mod": {
+		    "type": "string"
+		},
+		"func": {
+		    "type": "string"
+		},
+		"params": {
+		    "type": "object",
+		    "additionalProperties": {
+			"anyOf": [
+			    {
+				"type": "object",
+				"properties": {
+				    "name": {
+					"type": "string"
+				    }
+				},
+				"required": ["name"],
+				"additionalProperties": false
+			    }, {
+				"type": "object",
+				"properties": {
+				    "data": {}
+				},
+				"required": ["data"],
+				"additionalProperties": false
+			    }
+			]
+		    }
+		},
+		"depends_on": {
+		    "type": "object",
+		    "additionalProperties": {
+			"type": "string"
+		    }
+		},
+		"name": {
+		    "type": "string"
+		},
+		"ret": {
+		    "type": "array",
+		    "items": {
+			"type": "string"
+		    }
+		}
+	    },
+	    "required": ["type", "name", "mod", "func"],
+	    "additionalProperties": false
+	}, {
+	    "properties": {
+		"type": {
+		    "enum": ["dsl"]
+		},
+		"python": {
+		    "type": "string"
+		}
+	    },
+	    "required": ["type", "python"],
+	    "additionalProperties": false
+	}
+    ]
+}

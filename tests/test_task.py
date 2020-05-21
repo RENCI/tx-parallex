@@ -21,7 +21,9 @@ def test_enqueue():
                     "mod": "tests.test_task",
                     "func": "f",
                     "params": {
-                        "y": ["x"]
+                        "x": {
+                            "name": "y"
+                        }
                     }
                 }]
             }
@@ -59,13 +61,13 @@ def test_enqueue_dependent():
                 "name": "a",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"b": ["x"]}
+                "depends_on": {"x": "b"}
             }, {
                 "type": "python",
                 "name": "b",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"c": ["x"]}
+                "depends_on": {"x": "c"}
             }, {
                 "type": "python",
                 "name": "c",
@@ -113,7 +115,9 @@ def test_let():
                 "mod": "tests.test_task",
                 "func": "identity",
                 "params": {
-                    "y": ["x"]
+                    "x": {
+                        "name": "y"
+                    }
                 },
                 "ret": ["x"]
             }
@@ -138,20 +142,22 @@ def test_start():
                 "mod": "tests.test_task",
                 "func": "f",
                 "ret": ["x"],
-                "depends_on": {"b": ["x"]}
+                "depends_on": {"x": "b"}
             }, {
                 "type": "python",
                 "name": "b",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"c": ["x"]}
+                "depends_on": {"x": "c"}
             }, {
                 "type": "python",
                 "name": "c",
                 "mod": "tests.test_task",
                 "func": "f",
                 "params": {
-                    "y": ["x"]
+                    "x": {
+                        "name": "y"
+                    }
                 }
             }]
         }
@@ -176,20 +182,22 @@ def test_map_start():
                     "mod": "tests.test_task",
                     "func": "f",
                     "ret": ["x"],
-                    "depends_on": {"b": ["x"]}
+                    "depends_on": {"x": "b"}
                 }, {
                     "type": "python",
                     "name": "b",
                     "mod": "tests.test_task",
                     "func": "f",
-                    "depends_on": {"c": ["x"]}
+                    "depends_on": {"x": "c"}
                 }, {
                     "type": "python",
                     "name": "c",
                     "mod": "tests.test_task",
                     "func": "f",
                     "params": {
-                        "y": ["x"]
+                        "x": {
+                            "name": "y"
+                        }
                     }
                 }]
             }
@@ -217,6 +225,21 @@ return {"x": a}"""
         assert ret == {"x": Right(4)}
 
 
+def test_data_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type":"dsl",
+            "python": """
+a = tests.test_task.f(x=1)
+return {"x": a}"""
+        }
+        data = {}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(2)}
+
+
 def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
     spec = python_to_spec(py)
@@ -228,9 +251,9 @@ def test_python_to_spec1():
             "mod": "mod1.mod2",
             "func": "func",
             "params": {
-                "arg": [
-                    "param"
-                ]
+                "param": {
+                    "name": "arg"
+                }
             },
             "depends_on": {
             },
@@ -262,9 +285,7 @@ a = mod1.mod2.func(param=var)"""
             "params": {
             },
             "depends_on": {
-                "var": [
-                    "param"
-                ]
+                "param": "var"
             },
             "ret": []
         }]       
@@ -294,9 +315,7 @@ return {'ret1': a}"""
             "params": {
             },
             "depends_on": {
-                "var": [
-                    "param"
-                ]
+                "param": "var"
             },
             "ret": ["ret1"]
         }]

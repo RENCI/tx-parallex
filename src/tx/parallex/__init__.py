@@ -2,6 +2,12 @@ from multiprocessing import Manager, Process
 from tx.parallex.dependentqueue import DependentQueue, SubQueue
 from tx.parallex.task import enqueue, work_on, dispatch
 import yaml
+import json
+from jsonschema import validate
+import os.path
+
+with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
+    schema = json.load(f)
 
 def run(number_of_workers, specf, dataf):
     with open(specf) as s:
@@ -12,6 +18,7 @@ def run(number_of_workers, specf, dataf):
 
     
 def start(number_of_workers, spec, data):
+    validate(instance=spec, schema=schema)
     with Manager() as manager:
         job_queue = DependentQueue(manager)
         enqueue(spec, data, job_queue)

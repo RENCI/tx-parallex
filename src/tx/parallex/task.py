@@ -110,7 +110,7 @@ def sort_tasks(subs):
             logger.info(f"name = {name}")
             depends_on = sub.get("depends_on", {})
             logger.info(f"depends_on = {depends_on}")
-            if len(set(depends_on.keys()) - visited) == 0:
+            if len(set(depends_on.values()) - visited) == 0:
                 visited.add(name)
                 subs_sorted.append(sub)
                 updated = True
@@ -119,7 +119,7 @@ def sort_tasks(subs):
         if updated:
             copy = copy2
         else:
-            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {list(map(lambda x:x['name'], copy))}")
+            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {list(map(lambda x:x['name']+str(x['depends_on']), copy))}")
 
     print(subs_sorted)
     return subs_sorted
@@ -134,6 +134,17 @@ def python_ast_to_value(expr):
         return expr.value
     else:
         raise RuntimeError(f"cannot convert ast {expr} to value")
+
+    
+def python_ast_to_arg(expr):
+    if isinstance(expr, Name):
+        return {
+            "name": expr.id
+        }
+    else:
+        return {
+            "data": python_ast_to_value(expr)
+        }
 
     
 def python_to_spec(py):
@@ -169,6 +180,13 @@ def python_to_top_spec(body, ret_dict, dep_set):
     }
 
 
+def inverse_function(func):
+    inv_func = {}
+    for k, v in func.items():
+        ks = inv_func.get(v, [])
+        inv_func[v] = ks + [k]
+    return inv_func
+
 def python_to_spec_in_top(stmt, ret_dict, dep_set):
     targets = stmt.targets
     name = targets[0].id
@@ -182,15 +200,9 @@ def python_to_spec_in_top(stmt, ret_dict, dep_set):
             return value.id
         else:
             return f"{to_mod(value.value)}.{value.attr}"
-    def inverse_function(func):
-        inv_func = {}
-        for k, v in func:
-            ks = inv_func.get(v, [])
-            inv_func[v] = ks + [k]
-        return inv_func
     mod = to_mod(fqfunc.value)
-    params = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if keyword.value.id not in dep_set])
-    dependencies = inverse_function([(keyword.arg, keyword.value.id) for keyword in keywords if keyword.value.id in dep_set])
+    params = {keyword.arg: python_ast_to_arg(keyword.value) for keyword in keywords if not isinstance(keyword.value, Name) or keyword.value.id not in dep_set}
+    dependencies = {keyword.arg: keyword.value.id for keyword in keywords if isinstance(keyword.value, Name) and keyword.value.id in dep_set}
 
     return {
         "type": "python",
@@ -229,15 +241,20 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         ret = spec.get("ret", [])
         fqret = list(map(lambda ret: ".".join(map(str, ret_prefix + [ret])), ret))
         params = spec.get("params", {})
-        dependencies = {top[v]: ks for v, ks in spec.get("depends_on", {}).items()}
+        dependencies = {top[v]: ks for v, ks in inverse_function(spec.get("depends_on", {})).items()}
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
 
-        for k in params.keys():
-            if not k in data:
-                raise RuntimeError(f"undefined data {k}")
-            
-        args = {v: data[k] for k, vs in params.items() for v in vs}
+        def arg_spec_to_arg(data, arg):
+            logger.info(f"arg = {arg}")
+            if "name" in arg:
+                argnamereference = arg["name"]
+                if not argnamereference in data:
+                    raise RuntimeError(f"undefined data {argnamereference}")
+                return data[argnamereference]
+            else:
+                return arg["data"]
+        args = {k: arg_spec_to_arg(data, v) for k, v in params.items()}
         task = Task(mod, func, **args)
         top[name] = task.task_id
         logger.info(f"add task: {task.task_id} depends_on {dependencies}")

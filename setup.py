@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
     setuptools.setup(
         name="tx-parallex",
-        version="0.0.23",
+        version="0.0.24",
         license="MIT",
         author="Hao Xu",
         author_email="xuhao@renci.org",
@@ -19,10 +19,12 @@ with open("README.md", "r") as fh:
         package_dir={
             "": "src"
         },
+        include_package_data=True,
         py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
         install_requires=[
             "autorepr==0.3.0",
             "more-itertools==8.2.0",
+            "jsonschema==3.2.0",
             "pyyaml==5.3.1",
             "tx-functional>=0.0.13"
         ],
