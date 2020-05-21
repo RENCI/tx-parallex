@@ -11,7 +11,9 @@ def test_enqueue():
     with Manager() as manager:
         spec = {
             "type":"map",
-            "coll":"inputs",
+            "coll": {
+                "name": "inputs"
+            },
             "var":"y",
             "sub": {
                 "type":"top",
@@ -61,13 +63,21 @@ def test_enqueue_dependent():
                 "name": "a",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"x": "b"}
+                "params": {
+                    "x": {
+                        "depends_on": "b"
+                    }
+                }
             }, {
                 "type": "python",
                 "name": "b",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"x": "c"}
+                "params": {
+                    "x": {
+                        "depends_on": "c"
+                    }
+                }
             }, {
                 "type": "python",
                 "name": "c",
@@ -142,13 +152,21 @@ def test_start():
                 "mod": "tests.test_task",
                 "func": "f",
                 "ret": ["x"],
-                "depends_on": {"x": "b"}
+                "params": {
+                    "x": {
+                        "depends_on": "b"
+                    }
+                }
             }, {
                 "type": "python",
                 "name": "b",
                 "mod": "tests.test_task",
                 "func": "f",
-                "depends_on": {"x": "c"}
+                "params": {
+                    "x": {
+                        "depends_on": "c"
+                    }
+                }
             }, {
                 "type": "python",
                 "name": "c",
@@ -172,7 +190,9 @@ def test_map_start():
     with Manager() as manager:
         spec = {
             "type": "map",
-            "coll": "z",
+            "coll": {
+                "name": "z"
+            },
             "var": "y",
             "sub": {
                 "type":"top",
@@ -182,13 +202,21 @@ def test_map_start():
                     "mod": "tests.test_task",
                     "func": "f",
                     "ret": ["x"],
-                    "depends_on": {"x": "b"}
+                    "params": {
+                        "x": {
+                            "depends_on": "b"
+                        }
+                    }
                 }, {
                     "type": "python",
                     "name": "b",
                     "mod": "tests.test_task",
                     "func": "f",
-                    "depends_on": {"x": "c"}
+                    "params": {
+                        "x": {
+                            "depends_on": "c"
+                        }
+                    }
                 }, {
                     "type": "python",
                     "name": "c",
@@ -240,6 +268,47 @@ return {"x": a}"""
         assert ret == {"x": Right(2)}
 
 
+def test_args_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type":"dsl",
+            "python": """
+a = tests.test_task.f(1)
+return {"x": a}"""
+        }
+        data = {}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(2)}
+
+
+def add(a,b):
+    return a+b
+
+
+def test_map_data_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type":"map",
+            "var": "s",
+            "coll": {
+                "data": [1,2,3,4,5,6,7]
+            },
+            "sub": {
+                "type": "dsl",
+                "python": """
+t = tests.test_task.add(a=s, b=1)
+return {"t": t}"""
+            }
+        }
+        data = {}
+        
+        ret = start(3, spec, data)
+        assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
+
+
 def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
     spec = python_to_spec(py)
@@ -254,8 +323,6 @@ def test_python_to_spec1():
                 "param": {
                     "name": "arg"
                 }
-            },
-            "depends_on": {
             },
             "ret": []
         }]
@@ -275,7 +342,6 @@ a = mod1.mod2.func(param=var)"""
             "mod": "mod3",
             "func": "func2",
             "params": {},
-            "depends_on": {},
             "ret": []
         }, {
             "type": "python",
@@ -283,9 +349,9 @@ a = mod1.mod2.func(param=var)"""
             "mod": "mod1.mod2",
             "func": "func",
             "params": {
-            },
-            "depends_on": {
-                "param": "var"
+                "param": {
+                    "depends_on": "var"
+                }
             },
             "ret": []
         }]       
@@ -305,7 +371,6 @@ return {'ret1': a}"""
             "mod": "mod3",
             "func": "func2",
             "params": {},
-            "depends_on": {},
             "ret": []
         }, {
             "type": "python",
@@ -313,9 +378,9 @@ return {'ret1': a}"""
             "mod": "mod1.mod2",
             "func": "func",
             "params": {
-            },
-            "depends_on": {
-                "param": "var"
+                "param": {
+                    "depends_on": "var"
+                }
             },
             "ret": ["ret1"]
         }]
@@ -335,4 +400,90 @@ def test_python_to_spec4():
         }
     }
 
+
+def test_python_to_spec5():
+    py = """
+for i in c:
+    x = mod1.func2(r=i)"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "map",
+        "var": "i",
+        "coll": {
+            "name": "c"
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "x",
+                "mod": "mod1",
+                "func": "func2",
+                "params": {
+                    "r": {
+                        "name": "i"
+                    }
+                },
+                "ret": []
+            }]
+        }
+    }
+
+    
+def test_python_to_spec6():
+    py = """
+y = 1
+for i in c:
+    x = mod1.func2(r=i)"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "obj": {
+            "y": 1
+        },
+        "sub": {
+            "type": "map",
+            "var": "i",
+            "coll": {
+                "name": "c"
+            },
+            "sub": {
+                "type": "top",
+                "sub": [{
+                    "type": "python",
+                    "name": "x",
+                    "mod": "mod1",
+                    "func": "func2",
+                    "params": {
+                        "r": {
+                            "name": "i"
+                        }
+                    },
+                    "ret": []
+                }]
+            }
+        }
+    }
+
+def test_python_to_spec7():
+    py = """x = mod1.func2(i)"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "x",
+            "mod": "mod1",
+            "func": "func2",
+            "params": {
+                0: {
+                    "name": "i"
+                }
+            },
+            "ret": []
+        }]
+    }
 

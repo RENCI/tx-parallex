@@ -6,7 +6,7 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For
 import logging
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
@@ -98,6 +98,22 @@ def work_on(sub_queue):
             sub_queue.complete(jid, resultj)
     
 
+def get_task_depends_on(sub):
+    if sub["type"] == "python":
+        return {k: v["depends_on"] for k, v in sub.get("params", {}).items() if "depends_on" in v}
+    elif sub["type"] == "map":
+        if "depends_on" in sub["coll"]:
+            return {sub["var"]: sub["coll"]["depends_on"]}
+        else:
+            return {}
+    else:
+        raise RuntimeError(f"get_task_depends_on: unsupported task {sub}")
+
+
+def get_task_non_dependency_params(spec):
+    return {k: v for k, v in spec.get("params", {}).items() if "depends_on" not in v}
+
+
 def sort_tasks(subs):
     copy = list(subs)
     subs_sorted = []
@@ -108,7 +124,7 @@ def sort_tasks(subs):
         for sub in copy:
             name = sub["name"]
             logger.info(f"name = {name}")
-            depends_on = sub.get("depends_on", {})
+            depends_on = get_task_depends_on(sub)
             logger.info(f"depends_on = {depends_on}")
             if len(set(depends_on.values()) - visited) == 0:
                 visited.add(name)
@@ -119,7 +135,7 @@ def sort_tasks(subs):
         if updated:
             copy = copy2
         else:
-            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {list(map(lambda x:x['name']+str(x['depends_on']), copy))}")
+            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {list(map(lambda x:x['name']+str(x['params']), copy))}")
 
     print(subs_sorted)
     return subs_sorted
@@ -147,9 +163,56 @@ def python_ast_to_arg(expr):
         }
 
     
+def arg_spec_to_arg(data, arg):
+    logger.info(f"arg = {arg}")
+    if "name" in arg:
+        argnamereference = arg["name"]
+        if not argnamereference in data:
+            raise RuntimeError(f"undefined data {argnamereference}")
+        return data[argnamereference]
+    else:
+        return arg["data"]
+
+
+def let_spec(body, spec):
+    assigns = [stmt for stmt in body if not isinstance(stmt, Return) and not isinstance(stmt, For) and not isinstance(stmt.value, Call)]
+    if len(assigns) == 0:
+        return spec
+    else:
+        return {
+            "type": "let",
+            "obj": {
+                assign.targets[0].id: python_ast_to_value(assign.value) for assign in assigns
+            },
+            "sub": spec
+        }
+
+    
 def python_to_spec(py):
     t = parse(py)
     body = t.body
+    fors = [stmt for stmt in body if isinstance(stmt, For)]
+    
+    if len(fors) > 1:
+        raise RuntimeError("too many fors")
+    elif len(fors) == 1:
+        map_spec = {
+            "type": "map",
+            "var": fors[0].target.id,
+            "coll": {
+                "name": fors[0].iter.id
+            } if isinstance(fors[0].iter, Name) else {
+                "data": python_ast_to_value(fors[0].iter)
+            },
+            "sub": python_to_spec_seq(fors[0].body)
+        }
+        return let_spec(body, map_spec)
+        
+    else:
+        return python_to_spec_seq(body)
+    
+    
+def python_to_spec_seq(body):
     apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
     returns = [stmt for stmt in body if isinstance(stmt, Return)]
     assigns = [stmt for stmt in body if not isinstance(stmt.value, Call) and not isinstance(stmt, Return)]
@@ -161,16 +224,7 @@ def python_to_spec(py):
         ret_dict = {}
     
     top_spec = python_to_top_spec(apps, ret_dict, dep_set)
-    if len(assigns) == 0:
-        return top_spec
-    else:
-        return {
-            "type": "let",
-            "obj": {
-                assign.targets[0].id: python_ast_to_value(assign.value) for assign in assigns
-            },
-            "sub": top_spec
-        }
+    return let_spec(body, top_spec)
 
 
 def python_to_top_spec(body, ret_dict, dep_set):
@@ -193,7 +247,10 @@ def python_to_spec_in_top(stmt, ret_dict, dep_set):
     ret = [k for k, v in ret_dict.items() if v == name]
     app = stmt.value
     fqfunc = app.func
-    keywords = app.keywords
+    keywords = {
+        **{keyword.arg: keyword.value for keyword in app.keywords},
+        **{i: value for i, value in enumerate(app.args)}
+    }
     func = fqfunc.attr
     def to_mod(value):
         if isinstance(value, Name):
@@ -201,16 +258,17 @@ def python_to_spec_in_top(stmt, ret_dict, dep_set):
         else:
             return f"{to_mod(value.value)}.{value.attr}"
     mod = to_mod(fqfunc.value)
-    params = {keyword.arg: python_ast_to_arg(keyword.value) for keyword in keywords if not isinstance(keyword.value, Name) or keyword.value.id not in dep_set}
-    dependencies = {keyword.arg: keyword.value.id for keyword in keywords if isinstance(keyword.value, Name) and keyword.value.id in dep_set}
+    params = {k: python_ast_to_arg(v) for k, v in keywords.items() if not isinstance(v, Name) or v.id not in dep_set}
+    dependencies = {k: {
+        "depends_on": v.id
+    } for k, v in keywords.items() if isinstance(v, Name) and v.id in dep_set}
 
     return {
         "type": "python",
         "name": name,
         "mod": mod,
         "func": func,
-        "params": params,
-        "depends_on": dependencies,
+        "params": {**params, **dependencies},
         "ret": ret
     }
         
@@ -225,7 +283,7 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
     elif ty == "map":
         coll_name = spec["coll"]
         var = spec["var"]
-        coll = data[coll_name]
+        coll = arg_spec_to_arg(data, coll_name)
         subspec = spec["sub"]
         yield from roundrobin(*(generate_tasks(subspec, data2, top={}, ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
     elif ty == "top":
@@ -240,22 +298,15 @@ def generate_tasks(spec, data, top={}, ret_prefix=[]):
         func = spec["func"]
         ret = spec.get("ret", [])
         fqret = list(map(lambda ret: ".".join(map(str, ret_prefix + [ret])), ret))
-        params = spec.get("params", {})
-        dependencies = {top[v]: ks for v, ks in inverse_function(spec.get("depends_on", {})).items()}
+        params = get_task_non_dependency_params(spec)
+        dependencies = {top[v]: ks for v, ks in inverse_function(get_task_depends_on(spec)).items()}
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
 
-        def arg_spec_to_arg(data, arg):
-            logger.info(f"arg = {arg}")
-            if "name" in arg:
-                argnamereference = arg["name"]
-                if not argnamereference in data:
-                    raise RuntimeError(f"undefined data {argnamereference}")
-                return data[argnamereference]
-            else:
-                return arg["data"]
-        args = {k: arg_spec_to_arg(data, v) for k, v in params.items()}
-        task = Task(mod, func, **args)
+        args0 = {k: arg_spec_to_arg(data, v) for k, v in params.items()}
+        kwargs = {k: v for k, v in args0.items() if type(k) == str}
+        args = list(map(lambda x: x[1], sorted({k: v for k, v in args0.items() if type(k) == int}.items(), key = lambda x: x[0])))
+        task = Task(mod, func, *args, **kwargs)
         top[name] = task.task_id
         logger.info(f"add task: {task.task_id} depends_on {dependencies}")
         yield task, fqret, dependencies

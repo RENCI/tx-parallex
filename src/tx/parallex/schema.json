@@ -1,4 +1,36 @@
 {
+    "definitions": {
+	"term": {
+	    "anyOf": [
+		{
+		    "type": "object",
+		    "properties": {
+			"name": {
+			    "type": "string"
+			}
+		    },
+		    "required": ["name"],
+		    "additionalProperties": false
+		}, {
+		    "type": "object",
+		    "properties": {
+			"depends_on": {
+			    "type": "string"
+			}
+		    },
+		    "required": ["depends_on"],
+		    "additionalProperties": false
+		}, {
+		    "type": "object",
+		    "properties": {
+			"data": {}
+		    },
+		    "required": ["data"],
+		    "additionalProperties": false
+		}
+	    ]
+	}
+    },
     "anyOf": [
 	{
 	    "properties": {
@@ -6,7 +38,7 @@
 		    "enum": ["map"]
 		},
 		"coll": {
-		    "type": "string"
+		    "$ref": "#/definitions/term"
 		},
 		"var": {
 		    "type": "string"
@@ -59,25 +91,7 @@
 		"params": {
 		    "type": "object",
 		    "additionalProperties": {
-			"anyOf": [
-			    {
-				"type": "object",
-				"properties": {
-				    "name": {
-					"type": "string"
-				    }
-				},
-				"required": ["name"],
-				"additionalProperties": false
-			    }, {
-				"type": "object",
-				"properties": {
-				    "data": {}
-				},
-				"required": ["data"],
-				"additionalProperties": false
-			    }
-			]
+			"$ref": "#/definitions/term"
 		    }
 		},
 		"depends_on": {
