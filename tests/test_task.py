@@ -1,8 +1,8 @@
 from multiprocessing import Manager
 from queue import Empty
 import pytest
-from tx.parallex import start
-from tx.parallex.task import enqueue, EndOfQueue, python_to_spec
+from tx.parallex import start, start_python
+from tx.parallex.task import enqueue, EndOfQueue
 from tx.parallex.dependentqueue import DependentQueue
 from tx.functional.either import Left, Right
 
@@ -140,6 +140,8 @@ def test_let():
 def f(x):
     return x+1
 
+def g(x,y):
+    return x+y
 
 def test_start():
     print("test_start")
@@ -239,47 +241,58 @@ def test_map_start():
 def test_dsl_start():
     print("test_start")
     with Manager() as manager:
-        spec = {
-            "type":"dsl",
-            "python": """
+        py = """
 a = tests.test_task.f(x=b)
 b = tests.test_task.f(x=c)
 c = tests.test_task.f(x=y)
 return {"x": a}"""
-        }
+
         data = {"y": 1}
         
-        ret = start(3, spec, data)
+        ret = start_python(3, py, data)
         assert ret == {"x": Right(4)}
+
+
+def test_dsl_depend_for_to_outer_start():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+y = 1
+d = [2,3]
+c = tests.test_task.f(x=y)
+for j in d:
+    a = tests.test_task.g(x=c,y=j)
+    return {"x": a}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
 def test_data_start():
     print("test_start")
     with Manager() as manager:
-        spec = {
-            "type":"dsl",
-            "python": """
+        py = """
 a = tests.test_task.f(x=1)
 return {"x": a}"""
-        }
+
         data = {}
         
-        ret = start(3, spec, data)
+        ret = start_python(3, py, data)
         assert ret == {"x": Right(2)}
 
 
 def test_args_start():
     print("test_start")
     with Manager() as manager:
-        spec = {
-            "type":"dsl",
-            "python": """
+        py = """
 a = tests.test_task.f(1)
 return {"x": a}"""
-        }
+
         data = {}
         
-        ret = start(3, spec, data)
+        ret = start_python(3, py, data)
         assert ret == {"x": Right(2)}
 
 
@@ -290,200 +303,12 @@ def add(a,b):
 def test_map_data_start():
     print("test_start")
     with Manager() as manager:
-        spec = {
-            "type":"map",
-            "var": "s",
-            "coll": {
-                "data": [1,2,3,4,5,6,7]
-            },
-            "sub": {
-                "type": "dsl",
-                "python": """
-t = tests.test_task.add(a=s, b=1)
-return {"t": t}"""
-            }
-        }
+        py = """
+for s in [1,2,3,4,5,6,7]:
+    t = tests.test_task.add(a=s, b=1)
+    return {"t": t}"""
+
         data = {}
         
-        ret = start(3, spec, data)
+        ret = start_python(3, py, data)
         assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
-
-
-def test_python_to_spec1():
-    py = "a = mod1.mod2.func(param=arg)"
-    spec = python_to_spec(py)
-    assert spec == {
-        "type":"top",
-        "sub": [{
-            "type": "python",
-            "name": "a",
-            "mod": "mod1.mod2",
-            "func": "func",
-            "params": {
-                "param": {
-                    "name": "arg"
-                }
-            },
-            "ret": []
-        }]
-    }
-
-
-def test_python_to_spec2():
-    py = """
-var = mod3.func2()
-a = mod1.mod2.func(param=var)"""
-    spec = python_to_spec(py)
-    assert spec == {
-        "type":"top",
-        "sub": [{
-            "type": "python",
-            "name": "var",
-            "mod": "mod3",
-            "func": "func2",
-            "params": {},
-            "ret": []
-        }, {
-            "type": "python",
-            "name": "a",
-            "mod": "mod1.mod2",
-            "func": "func",
-            "params": {
-                "param": {
-                    "depends_on": "var"
-                }
-            },
-            "ret": []
-        }]       
-    }
-
-def test_python_to_spec3():
-    py = """
-var = mod3.func2()
-a = mod1.mod2.func(param=var)
-return {'ret1': a}"""
-    spec = python_to_spec(py)
-    assert spec == {
-        "type":"top",
-        "sub": [{
-            "type": "python",
-            "name": "var",
-            "mod": "mod3",
-            "func": "func2",
-            "params": {},
-            "ret": []
-        }, {
-            "type": "python",
-            "name": "a",
-            "mod": "mod1.mod2",
-            "func": "func",
-            "params": {
-                "param": {
-                    "depends_on": "var"
-                }
-            },
-            "ret": ["ret1"]
-        }]
-    }
-
-def test_python_to_spec4():
-    py = "a = 1"
-    spec = python_to_spec(py)
-    assert spec == {
-        "type":"let",
-        "obj": {
-            "a": 1
-        },
-        "sub": {
-            "type": "top",
-            "sub": []
-        }
-    }
-
-
-def test_python_to_spec5():
-    py = """
-for i in c:
-    x = mod1.func2(r=i)"""
-
-    spec = python_to_spec(py)
-    assert spec == {
-        "type": "map",
-        "var": "i",
-        "coll": {
-            "name": "c"
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "x",
-                "mod": "mod1",
-                "func": "func2",
-                "params": {
-                    "r": {
-                        "name": "i"
-                    }
-                },
-                "ret": []
-            }]
-        }
-    }
-
-    
-def test_python_to_spec6():
-    py = """
-y = 1
-for i in c:
-    x = mod1.func2(r=i)"""
-
-    spec = python_to_spec(py)
-    assert spec == {
-        "type": "let",
-        "obj": {
-            "y": 1
-        },
-        "sub": {
-            "type": "map",
-            "var": "i",
-            "coll": {
-                "name": "c"
-            },
-            "sub": {
-                "type": "top",
-                "sub": [{
-                    "type": "python",
-                    "name": "x",
-                    "mod": "mod1",
-                    "func": "func2",
-                    "params": {
-                        "r": {
-                            "name": "i"
-                        }
-                    },
-                    "ret": []
-                }]
-            }
-        }
-    }
-
-def test_python_to_spec7():
-    py = """x = mod1.func2(i)"""
-
-    spec = python_to_spec(py)
-    assert spec == {
-        "type": "top",
-        "sub": [{
-            "type": "python",
-            "name": "x",
-            "mod": "mod1",
-            "func": "func2",
-            "params": {
-                0: {
-                    "name": "i"
-                }
-            },
-            "ret": []
-        }]
-    }
-

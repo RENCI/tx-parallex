@@ -1,6 +1,7 @@
 from multiprocessing import Manager, Process
 from tx.parallex.dependentqueue import DependentQueue, SubQueue
 from tx.parallex.task import enqueue, work_on, dispatch
+from tx.parallex.python import python_to_spec
 import yaml
 import json
 from jsonschema import validate
@@ -9,6 +10,14 @@ import os.path
 with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
     schema = json.load(f)
 
+def run_python(number_of_workers, pyf, dataf):
+    with open(pyf) as s:
+        py = read(s)
+    with open(dataf) as d:
+        data = yaml.safe_load(d)
+    return start_python(number_of_workers, py, data)
+
+
 def run(number_of_workers, specf, dataf):
     with open(specf) as s:
         spec = yaml.safe_load(s)
@@ -16,7 +25,10 @@ def run(number_of_workers, specf, dataf):
         data = yaml.safe_load(d)
     return start(number_of_workers, spec, data)
 
-    
+
+def start_python(number_of_workers, py, data):
+    return start(number_of_workers, python_to_spec(py), data)
+
 def start(number_of_workers, spec, data):
     validate(instance=spec, schema=schema)
     with Manager() as manager:
