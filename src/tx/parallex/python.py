@@ -6,7 +6,7 @@ from importlib import import_module
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign
 import logging
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
@@ -40,19 +40,10 @@ def python_ast_to_arg(expr):
         }
 
     
-def arg_spec_to_arg(data, arg):
-    logger.info(f"arg = {arg}")
-    if "name" in arg:
-        argnamereference = arg["name"]
-        if not argnamereference in data:
-            raise RuntimeError(f"undefined data {argnamereference}")
-        return data[argnamereference]
-    else:
-        return arg["data"]
-
-
-def let_spec(body, spec):
+def let_spec(body, func):
     assigns = [stmt for stmt in body if not isinstance(stmt, Return) and not isinstance(stmt, For) and not isinstance(stmt.value, Call)]
+    rest = [stmt for stmt in body if stmt not in assigns]
+    spec = func(rest)
     if len(assigns) == 0:
         return spec
     else:
@@ -68,39 +59,42 @@ def let_spec(body, spec):
 def python_to_spec(py):
     t = parse(py)
     body = t.body
-    fors = [stmt for stmt in body if isinstance(stmt, For)]
     
-    if len(fors) > 1:
-        raise RuntimeError("too many fors")
-    elif len(fors) == 1:
-        map_spec = {
-            "type": "map",
-            "var": fors[0].target.id,
-            "coll": {
-                "name": fors[0].iter.id
-            } if isinstance(fors[0].iter, Name) else {
-                "data": python_ast_to_value(fors[0].iter)
-            },
-            "sub": python_to_spec_seq(fors[0].body)
-        }
-        return let_spec(body, map_spec)
-        
-    else:
-        return python_to_spec_seq(body)
+    return python_to_spec_seq(body)
     
     
 def python_to_spec_seq(body):
-    apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
-    returns = [stmt for stmt in body if isinstance(stmt, Return)]
-    dep_set = set(app.targets[0].id for app in apps)
-    if len(returns) >= 1:
-        ret = returns[0].value
-        ret_dict = {python_ast_to_value(k): v.id for k, v in zip(ret.keys, ret.values)}
-    else:
-        ret_dict = {}
+    def func(stmts):
+        fors = [stmt for stmt in stmts if isinstance(stmt, For)]
+        if len(fors) > 1:
+            raise RuntimeError("too many fors")
+        elif len(fors) == 1:
+            if len(stmts) > 1:
+                raise RuntimeError("for cannot be on the same level as return or dependency")
+            else:
+                return {
+                    "type": "map",
+                    "var": fors[0].target.id,
+                    "coll": {
+                        "name": fors[0].iter.id
+                    } if isinstance(fors[0].iter, Name) else {
+                        "data": python_ast_to_value(fors[0].iter)
+                    },
+                    "sub": python_to_spec_seq(fors[0].body)
+                }
+        else:
+            apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and isinstance(stmt.value, Call)]
+            returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
+            dep_set = set(app.targets[0].id for app in apps)
+            if len(returns) >= 1:
+                ret = returns[0].value
+                ret_dict = {python_ast_to_value(k): v.id for k, v in zip(ret.keys, ret.values)}
+            else:
+                ret_dict = {}
     
-    top_spec = python_to_top_spec(apps, ret_dict, dep_set)
-    return let_spec(body, top_spec)
+            return python_to_top_spec(apps, ret_dict, dep_set)
+    
+    return let_spec(body, func)
 
 
 def python_to_top_spec(body, ret_dict, dep_set):
