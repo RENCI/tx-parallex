@@ -215,7 +215,6 @@ def python_to_spec(py):
 def python_to_spec_seq(body):
     apps = [stmt for stmt in body if isinstance(stmt.value, Call)]
     returns = [stmt for stmt in body if isinstance(stmt, Return)]
-    assigns = [stmt for stmt in body if not isinstance(stmt.value, Call) and not isinstance(stmt, Return)]
     dep_set = set(app.targets[0].id for app in apps)
     if len(returns) >= 1:
         ret = returns[0].value
@@ -240,6 +239,7 @@ def inverse_function(func):
         ks = inv_func.get(v, [])
         inv_func[v] = ks + [k]
     return inv_func
+
 
 def python_to_spec_in_top(stmt, ret_dict, dep_set):
     targets = stmt.targets
