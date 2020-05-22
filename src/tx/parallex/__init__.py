@@ -1,6 +1,6 @@
 from multiprocessing import Manager, Process
 from tx.parallex.dependentqueue import DependentQueue, SubQueue
-from tx.parallex.task import enqueue, work_on, dispatch
+from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue
 from tx.parallex.python import python_to_spec
 import yaml
 import json
@@ -32,7 +32,7 @@ def start_python(number_of_workers, py, data):
 def start(number_of_workers, spec, data):
     validate(instance=spec, schema=schema)
     with Manager() as manager:
-        job_queue = DependentQueue(manager)
+        job_queue = DependentQueue(manager, EndOfQueue())
         enqueue(spec, data, job_queue)
         subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
         processes = []

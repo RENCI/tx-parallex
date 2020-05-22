@@ -303,3 +303,54 @@ def test_python_to_spec10():
             "ret": []
     }
 
+def test_python_to_spec11():
+    py = """
+d = [2,3]
+c = tests.test_task.identity(d)
+for j in c:
+    a = tests.test_task.g(x=2,y=j)
+    return {"x": a}"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "obj": {
+            "d": [2,3]
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "c",
+                "mod": "tests.test_task",
+                "func": "identity",
+                "params": {
+                    0: {
+                        "name": "d"
+                    }
+                },
+                "ret": []
+            }, {
+                "type": "map",
+                "var": "j",
+                "coll": {
+                    "depends_on": "c"
+                },
+                "sub": {
+                    "type": "python",
+                    "name": "a",
+                    "mod": "tests.test_task",
+                    "func": "g",
+                    "params": {
+                        "x": {
+                            "data": 2
+                        },
+                        "y": {
+                            "name": "j"
+                        }
+                    },
+                    "ret": ["x"]
+                }
+            }]
+        }
+    }

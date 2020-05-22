@@ -97,14 +97,23 @@ EnvStack2 = Stack(set())
 
 def python_to_spec_in_top(stmt, ret_dict, dep_set):
     if isinstance(stmt, For):
+        if isinstance(stmt.iter, Name):
+            if stmt.iter.id in dep_set:
+                coll_name = {
+                    "depends_on": stmt.iter.id
+                }
+            else:
+                coll_name = {
+                    "name": stmt.iter.id
+                }
+        else:
+            coll_name = {
+                "data": python_ast_to_value(stmt.iter)
+            }
         return {
             "type": "map",
             "var": stmt.target.id,
-            "coll": {
-                "name": stmt.iter.id
-            } if isinstance(stmt.iter, Name) else {
-                "data": python_ast_to_value(stmt.iter)
-            },
+            "coll": coll_name,
             "sub": python_to_spec_seq(stmt.body, EnvStack2(dep_set))
         }
     else:

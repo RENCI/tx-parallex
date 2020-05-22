@@ -8,6 +8,7 @@ from autorepr import autorepr, autotext
 from multiprocessing import Manager
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For
 import logging
+import traceback
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
@@ -23,81 +24,114 @@ class DispatchMode(Enum):
 
     
 class AbsTask:
-    def __init__(self, dispatch_mode):
+    def __init__(self, dispatch_mode, task_id=None):
         self.dispatch_mode = dispatch_mode
-
-        
-class Task(AbsTask):
-    def __init__(self, mod, func, *args, task_id=None, **kwargs):
-        super().__init__(DispatchMode.RANDOM)
         self.task_id = task_id if task_id is not None else str(uuid4())
-        logger.info(f"self.task_id = {self.task_id}")
+        logger.info(f"AbsTask.__init__: self.task_id = {self.task_id}")
+
+
+def substitute_list(results, args):
+    return [results[arg] for arg in args if arg in results]
+
+def substitute_dict(results, kwargs):
+    return {k: results[v] for k, v in kwargs.items() if v in results}
+    
+class Task(AbsTask):
+    def __init__(self, mod, func, args_spec, kwargs_spec, *args, task_id=None, **kwargs):
+        super().__init__(DispatchMode.RANDOM, task_id=task_id)
         self.mod = mod
         self.func = func
         self.args = args
         self.kwargs = kwargs
+        self.args_spec = args_spec
+        self.kwargs_spec = kwargs_spec
 
-    __repr__ = autorepr(["task_id", "mod", "func", "args", "kwargs"])
-    __str__, __unicode__ = autotext("{self.task_id} {self.mod}.{self.func} {self.args} {self.kwargs}")
+    __repr__ = autorepr(["task_id", "mod", "func", "args_spec", "kwargs_spec", "args", "kwargs"])
+    __str__, __unicode__ = autotext("{self.task_id} {self.mod}.{self.func} {self.args_spec} {self.kwargs_spec} {self.args} {self.kwargs}")
 
-    def run(self, result):
+    def run(self, results, subnode_depends, subnode_results, queue):
         mod = import_module(self.mod)
         func = getattr(mod, self.func)
-        return func(*self.args, **result, **self.kwargs)
+        args = substitute_list(results, self.args_spec)
+        kwargs = substitute_dict(results, self.kwargs_spec)
+        return func(*self.args, *args, **self.kwargs, **kwargs)
+
+        
+class Dynamic(AbsTask):
+    def __init__(self, var, coll_spec, data_spec, spec, data, ret_prefix, task_id=None):
+        super().__init__(DispatchMode.RANDOM, task_id=task_id)
+        self.var = var
+        self.coll_spec = coll_spec
+        self.data_spec = data_spec
+        self.spec = spec
+        self.data = data
+        self.ret_prefix = ret_prefix
+
+    __repr__ = autorepr(["task_id", "var", "coll_spec", "data_spec", "spec", "data", "ret_prefix"])
+    __str__, __unicode__ = autotext("{self.task_id} {self.var} {self.coll_spec} {self.data_spec} {self.spec} {self.data} {self.ret_prefix}")
+
+    def run(self, results, subnode_depends, subnode_results, queue):
+        enqueue({
+            "type": "map",
+            "var": self.var,
+            "coll": {
+                "data": results[self.coll_spec]
+            },
+            "sub": self.spec
+        }, {**self.data, **substitute_dict(subnode_results, self.data_spec)}, queue, top=EnvStack(subnode_depends), ret_prefix=self.ret_prefix)
 
         
 class EndOfQueue(AbsTask):
     def __init__(self):
-        super().__init__(DispatchMode.BROADCAST)
+        super().__init__(DispatchMode.RANDOM)
 
         
 def dispatch(job_queue, worker_queues):
     n = len(worker_queues)
     while True:
         jri = job_queue.get()
-        job, result, jid = jri
         logger.info(f"dispatching {jri}")
-        if job.dispatch_mode == DispatchMode.BROADCAST:
+        job, results, subnode_depends, subnode_results, jid = jri
+        if isinstance(job, EndOfQueue):
             for p in worker_queues:
-                p.put(jri)
-            job_queue.complete(jid)
-        elif job.dispatch_mode == DispatchMode.RANDOM:
+                p.put_in_subqueue(jri)
+            break
+        else:
             base = choice(range(n))
             done = False
             for off in range(n):
                 i = base + off
                 if not worker_queues[i].full():
-                    worker_queues[i].put(jri)
+                    worker_queues[i].put_in_subqueue(jri)
                     done = True
                     break
             if not done:
-                worker_queues[base].put(jri)
-        if isinstance(job, EndOfQueue):
-            break
+                worker_queues[base].put_in_subqueue(jri)
 
     
 def work_on(sub_queue):
     while True:
-        job, result, jid = sub_queue.get()
+        jri = sub_queue.get()
+        job, results, subnode_depends, subnode_results, jid = jri
         if isinstance(job, EndOfQueue):
             break
         else:
             try:
                 resultv = {}
                 error = False
-                for k, v in result.items():
+                for k, v in results.items():
                     if isinstance(v, Left):
                         resultj = v
                         error = True
                         break
                     else:
                         resultv[k] = v.value
-                if not error:                    
-                    resultj = job.run(resultv)
+                if not error:
+                    resultj = job.run(resultv, subnode_depends, subnode_results, sub_queue)
                     if not isinstance(resultj, Either):
                         resultj = Right(resultj)
             except Exception as e:
-                resultj = Left(str(e))
+                resultj = Left((str(e), traceback.format_exc()))
             sub_queue.complete(jid, resultj)
     
 
@@ -123,6 +157,7 @@ def get_task_depends_on(sub):
     else:
         raise RuntimeError(f"get_task_depends_on: unsupported task {sub}")
 
+    
 def get_task_non_dependency_params(spec):
     return {k: v for k, v in spec.get("params", {}).items() if "depends_on" not in v}
 
@@ -153,8 +188,12 @@ def sort_tasks(subs):
     return subs_sorted
 
 
+def split_args(args0):
+    kwargs = {k: v for k, v in args0.items() if type(k) == str}
+    args = list(map(lambda x: x[1], sorted({k: v for k, v in args0.items() if type(k) == int}.items(), key = lambda x: x[0])))
+    return args, kwargs
+
 def arg_spec_to_arg(data, arg):
-    logger.info(f"arg = {arg}")
     if "name" in arg:
         argnamereference = arg["name"]
         if not argnamereference in data:
@@ -176,9 +215,19 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[]):
     elif ty == "map":
         coll_name = spec["coll"]
         var = spec["var"]
-        coll = arg_spec_to_arg(data, coll_name)
         subspec = spec["sub"]
-        yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
+        if "depends_on" in coll_name:
+            # dynamic task
+            coll_spec = top[coll_name["depends_on"]]
+            subnode_dep = get_task_depends_on(subspec)
+            data_spec = {name: top[name] for name in subnode_dep}
+            task = Dynamic(var, coll_spec, data_spec, subspec, data, ret_prefix)
+            dep = {coll_spec}
+            logger.info(f"add task: {task.task_id} depends_on {dep}, {subnode_dep}")
+            yield task, [], dep, subnode_dep 
+        else:
+            coll = arg_spec_to_arg(data, coll_name)
+            yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
     elif ty == "top":
         subs = spec["sub"]
         subs_sorted = sort_tasks(subs)
@@ -191,31 +240,29 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[]):
         func = spec["func"]
         ret = spec.get("ret", [])
         fqret = list(map(lambda ret: ".".join(map(str, ret_prefix + [ret])), ret))
-        params = get_task_non_dependency_params(spec)
-        dependencies = {top[v]: ks for v, ks in inverse_function(get_python_task_depends_on(spec)).items()}
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
 
-        args0 = {k: arg_spec_to_arg(data, v) for k, v in params.items()}
-        kwargs = {k: v for k, v in args0.items() if type(k) == str}
-        args = list(map(lambda x: x[1], sorted({k: v for k, v in args0.items() if type(k) == int}.items(), key = lambda x: x[0])))
-        task = Task(mod, func, *args, **kwargs)
+        args0 = {k: arg_spec_to_arg(data, v) for k, v in get_task_non_dependency_params(spec).items()}
+        args, kwargs = split_args(args0)
+        dependencies = {k: top[v] for k, v in get_python_task_depends_on(spec).items()}
+        args_spec, kwargs_spec = split_args(dependencies)
+        task = Task(mod, func, args_spec, kwargs_spec, *args, **kwargs)
         top[name] = task.task_id
         logger.info(f"add task: {task.task_id} depends_on {dependencies}")
-        yield task, fqret, dependencies
+        yield task, fqret, set(dependencies.values()), set()
     else:
         raise RuntimeError(f'unsupported spec type {ty}')
 
 
-def enqueue(spec, data, job_queue):
+def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[]):
     job_ids = {}
-    for what in generate_tasks(spec, data):
-        job, ret, dependencies = what
+    for what in generate_tasks(spec, data, top=top, ret_prefix=ret_prefix):
+        job, ret, dependencies, subnode_dependencies = what
         job_id = job.task_id
-        job_queue.put(job, job_id=job_id, ret=ret, depends_on=dependencies)
+        job_queue.put(job, job_id=job_id, ret=ret, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
         job_ids[job_id] = job_id
 
-    job_queue.put(EndOfQueue(), depends_on={job_id: [] for job_id in job_ids})
     
 
         

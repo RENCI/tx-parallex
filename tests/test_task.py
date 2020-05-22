@@ -33,22 +33,22 @@ def test_enqueue():
         data = {
             "inputs": [1, 2, 3]
         }
-        dq = DependentQueue(manager)
+        dq = DependentQueue(manager, EndOfQueue())
 
         enqueue(spec, data, dq)
 
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":1}
         assert r == {}
         dq.complete(f, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":2}
         assert r == {}
         dq.complete(f, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":3}
         dq.complete(f, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -86,23 +86,23 @@ def test_enqueue_dependent():
             }]
         }
         data = {}
-        dq = DependentQueue(manager)
+        dq = DependentQueue(manager, EndOfQueue())
 
         enqueue(spec, data, dq)
 
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f1 = dq.get(block=False)
         print(n)
         assert r == {}
-        dq.complete(f, 1)
-        n, r, f = dq.get(block=False)
+        dq.complete(f1, 1)
+        n, r, sd, sr, f2 = dq.get(block=False)
         print(n)
-        assert r == {"x":1}
-        dq.complete(f, 2)
-        n, r, f = dq.get(block=False)
+        assert r == {f1:1}
+        dq.complete(f2, 2)
+        n, r, sd, sr, f = dq.get(block=False)
         print(n)
-        assert r == {"x":2}
+        assert r == {f2:2}
         dq.complete(f, 3)
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -270,6 +270,22 @@ for j in d:
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
+def test_dynamic_for():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+d = [2,3]
+c = tests.test_task.identity(d)
+for j in c:
+    a = tests.test_task.g(x=2,y=j)
+    return {"x": a}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"0.x": Right(4), "1.x": Right(5)}
+
+
 def test_data_start():
     print("test_start")
     with Manager() as manager:
@@ -294,6 +310,20 @@ return {"x": a}"""
         
         ret = start_python(3, py, data)
         assert ret == {"x": Right(2)}
+
+
+def test_dep_args_start():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = tests.test_task.f(1)
+b = tests.test_task.f(a)
+return {"x": b}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"x": Right(3)}
 
 
 def add(a,b):

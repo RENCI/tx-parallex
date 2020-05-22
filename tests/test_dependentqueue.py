@@ -6,24 +6,26 @@ from tx.parallex.dependentqueue import DependentQueue, Node
 
 def test_dep():
     with Manager() as manager:
-        dq = DependentQueue(manager)
+        dq = DependentQueue(manager, None)
 
         id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={id3: ["c"]})
-        id1 = dq.put(1, depends_on={id2: ["a"], id3: ["b"]})
+        id2 = dq.put(2, depends_on={id3})
+        id1 = dq.put(1, depends_on={id3, id2})
         
-        n, r, f = dq.get(block=False)
+        n, r, sd, sr, f1 = dq.get(block=False)
         assert n == 3
         assert r == {}
-        dq.complete(f, 6)
-        n, r, f = dq.get(block=False)
+        dq.complete(f1, 6)
+        n, r, sd, sr, f2 = dq.get(block=False)
         assert n == 2
-        assert r == {"c": 6}
-        dq.complete(f, 5)
-        n, r, f = dq.get(block=False)
+        assert r == {f1: 6}
+        dq.complete(f2, 5)
+        n, r, sd, sr, f = dq.get(block=False)
         assert n == 1
-        assert r == {"a": 5, "b": 6}
+        assert r == {f2: 5, f1: 6}
         dq.complete(f, 4)
+        n, r, sd, sr, f = dq.get(block=False)
+        assert n is None
         with pytest.raises(Empty):
             dq.get(block=False)
     
