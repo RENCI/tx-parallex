@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/RENCI/tx-parallex.svg?branch=master)](https://travis-ci.com/RENCI/tx-parallex)
+
 # `parallex`
 ## Introduction
 A queue with dependencies
