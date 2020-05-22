@@ -12,7 +12,7 @@ with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
 
 def run_python(number_of_workers, pyf, dataf):
     with open(pyf) as s:
-        py = read(s)
+        py = s.read()
     with open(dataf) as d:
         data = yaml.safe_load(d)
     return start_python(number_of_workers, py, data)

@@ -223,7 +223,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[]):
             data_spec = {name: top[name] for name in subnode_dep}
             task = Dynamic(var, coll_spec, data_spec, subspec, data, ret_prefix)
             dep = {coll_spec}
-            logger.info(f"add task: {task.task_id} depends_on {dep}, {subnode_dep}")
+            logger.info(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
             yield task, [], dep, subnode_dep 
         else:
             coll = arg_spec_to_arg(data, coll_name)
