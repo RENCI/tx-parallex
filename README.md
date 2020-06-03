@@ -68,29 +68,32 @@ ret: <returns>
 ```
 `params` are the same format as `depends_on`
 
-### `dsl`
+## `dsl`
 A dsl block contains a subset of python.
-```
-type: dsl
-python: <python>
-```
 
 Available syntax:
 
-#### assignment
+### assignment
 ```
 <var> = <const> | <list> | <dict>
 ```
 This translates to `let`.
 
-#### function application
+### function application
 ```
 <var> = <module>.<func>(<param>=<arg>, ...)
 ```
 This translate to `python`.
 where `<var>` is `name`
 
-#### return
+### parallel for
+
+```
+for <var> in <var>:
+    ...
+```
+This translates to `map`.
+### return
 ```
 return <dict>
 ```
