@@ -342,3 +342,35 @@ for s in [1,2,3,4,5,6,7]:
         
         ret = start_python(3, py, data)
         assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
+
+        
+def runtime_error():
+    raise RuntimeError()
+
+
+def return_error():
+    raise Left("errmsg")
+
+
+def test_exception_error():
+    with Manager() as manager:
+        py = """
+t = tests.test_task.runtime_error()
+return {"t": t}
+"""
+        data = {}
+
+        ret = start_python(3, py, data)
+        assert isinstance(ret["t"], Left)
+
+        
+def test_return_error():
+    with Manager() as manager:
+        py = """
+t = tests.test_task.return_error()
+return {"t": t}
+"""
+        data = {}
+
+        ret = start_python(3, py, data)
+        assert isinstance(ret["t"], Left)
