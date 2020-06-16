@@ -7,7 +7,7 @@ A queue with dependencies
 ## Usage
 
 ```
-from parallex import run
+from tx.parallex import run
 
 ret = run(number_of_workers = 4, specf = "spec.yml", dataf = "data.yml")
 ```
