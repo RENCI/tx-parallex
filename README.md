@@ -118,19 +118,22 @@ This translates to `let`.
 ```
 This translate to `python`.
 where `<var>` is `name`
+`<arg>` is translated to `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
 
 ### parallel for
 
 ```
-for <var> in <var>:
+for <var> in <value>:
     ...
 ```
 This translates to `map`.
+
 ### return
 ```
 return <dict>
 ```
-this translates to `ret` in `python`.
+This translates to `ret` in `python`. The key of the dict will be translated to the list in `ret`.
+
 
 
 ## Data
