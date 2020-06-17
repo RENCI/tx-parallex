@@ -9,7 +9,7 @@ A queue with dependencies
 ```
 from tx.parallex import run
 
-ret = run(number_of_workers = 4, specf = "spec.yml", dataf = "data.yml")
+ret = run(number_of_workers = 4, specf = "spec.py", dataf = "data.yml")
 ```
 
 ## Spec
