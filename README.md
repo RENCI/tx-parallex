@@ -56,6 +56,8 @@ The result of a task will be assigned to the parameters that it maps to.
 
 ### `python`
 
+You can use any python module.
+
 The `python` task runs a python function. It reads parameters from `data`.
 ```
 type: python
