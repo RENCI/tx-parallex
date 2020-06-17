@@ -103,9 +103,9 @@ sub:
 
 ### `python`
 
-You can use any python module.
+You can use any Python module.
 
-The `python` task runs a python function. It reads parameters from `data`.
+The `python` task runs a Python function. It reads parameters from `data`.
 
 Syntax:
 ```
@@ -181,7 +181,7 @@ sub:
   - c
 ```
 ## Python
-A dsl block contains a subset of python.
+A dsl block contains a subset of Python.
 
 Available syntax:
 
