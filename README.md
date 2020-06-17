@@ -13,10 +13,16 @@ ret = run_python(number_of_workers = 4, pyf = "spec.py", dataf = "data.yml")
 ```
 
 ## Spec
-Each task is given a dict called `data`.
 
-### `let`
-The `let` task sets `data`
+`tx-parallex` specs can be written in YAML or a Python-like DSL. The Python-like DSL is translated to YAML.
+
+### YAML
+Each object in a spec specifies a task. When the task is executed, it is given a dict called `data`. The pipeline will return a dictionary.
+
+#### `let`
+The `let` task sets `data` for its subtask. It adds new var value pairs into `data` within the scope of its subtask, and executes that task.
+
+Syntax:
 ```
 type: let
 obj: 
@@ -27,50 +33,75 @@ sub: <subtask>
 ```
 
 ### `map`
-The `map` task reads a list `coll` from `data` and applies a list of subtasks to each member of the list. The members will be assigned to `var` in `data` passed to those tasks
+The `map` task reads a list `coll` from `data` and applies a subtask to each member of the list. The members will be assigned to `var` in `data` passed to those tasks
 
+Syntax:
 ```
 type: map
-coll: <variable name for collection>
+coll: <value>
 var: <variable name>
 sub: <subtask>
 ```
 
-### `top`
-
-The `top` task toplogically sorts subtasks. 
-
+`<value>` is an object of the form
+Reference an entry in `data`
 ```
-type: top
-sub: <subtasks>
+"name": <variable name>
 ```
-
-It reads the `depends_on` property of subtasks, which has format:
-
+Reference the name of a task
 ```
-<task name>: [<param>, ..., <param>]
-...
-<task name>: [<param>, ..., <param>]
+"depends_on": <task name>
 ```
-The result of a task will be assigned to the parameters that it maps to.
+Constant
+```
+"data": <constant>
+```
 
 ### `python`
 
 You can use any python module.
 
 The `python` task runs a python function. It reads parameters from `data`.
+
+Syntax:
 ```
 type: python
 name: <name>
 mod: <module>
 func: <function>
 params: <parameters>
-depends_on: <dependencies>
 ret: <returns>
 ```
-`params` are the same format as `depends_on`
 
-## `dsl`
+`<parameters>` is an object of the form
+```
+<param> : <value>
+...
+<param> : <value>
+```
+
+`ret` specify a list of names that will map to the return value of task. The pipeline will return a dictionary containing these names. When a task appears under a `map` task, each name is prefix with the index of the element in that collection as following 
+
+```
+<index>.<name>
+```
+For nested maps, the indices will be chained together as followings
+```
+<index>. ... .<index>.<name>
+```
+
+### `top`
+
+The `top` task toplogically sorts subtasks based on their dependencies and ensure the tasks are executed in parallel in the order compatible with those dependencies. 
+
+```
+type: top
+sub: <subtasks>
+```
+
+It reads the `depends_on` properties of subtasks.
+
+## Python
 A dsl block contains a subset of python.
 
 Available syntax:
