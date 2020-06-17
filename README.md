@@ -67,15 +67,18 @@ var: <variable name>
 sub: <subtask>
 ```
 
-`<value>` is an object of the form
+`<value>` is the following
+
 Reference an entry in `data`
 ```
 "name": <variable name>
 ```
+
 Reference the name of a task
 ```
 "depends_on": <task name>
 ```
+
 Constant
 ```
 "data": <constant>
