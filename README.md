@@ -67,7 +67,7 @@ var: <variable name>
 sub: <subtask>
 ```
 
-`<value>` is the following
+`<value>` is an object of the form:
 
 Reference an entry in `data`
 ```
@@ -120,7 +120,7 @@ params: <parameters>
 ret: <returns>
 ```
 
-`<parameters>` is an object of the form
+`<parameters>` is an object of the form:
 ```
 <param> : <value>
 ...
