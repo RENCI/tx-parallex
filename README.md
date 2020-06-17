@@ -123,6 +123,7 @@ ret: <returns>
 ...
 <param> : <value>
 ```
+where `<param>` can be either name or position.
 
 `ret` specify a list of names that will map to the return value of task. The pipeline will return a dictionary containing these names. When a task appears under a `map` task, each name is prefix with the index of the element in that collection as following 
 
@@ -142,7 +143,7 @@ Example:
   func: sqr
   params: 
     x:
-      name: a
+      data: 1
   ret:
   - b
 ```
@@ -168,7 +169,7 @@ sub:
   func: sqr
   params: 
     x:
-      name: a
+      data: 1
 - type: python
   name: z
   mod: math
@@ -190,6 +191,15 @@ Available syntax:
 ```
 This translates to `let`.
 
+Example:
+```
+a = 1
+y = sqr(x=a)
+return {
+  "b": y
+}
+```
+
 ### function application
 ```
 <var> = <module>.<func>(<param>=<arg>, ...)
@@ -197,6 +207,15 @@ This translates to `let`.
 This translate to `python`.
 where `<var>` is `name`
 `<arg>` is translated to `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
+
+Example:
+```
+y = math.sqr(1)
+z = math.sqr(y)
+return {
+  "c": z
+}
+```
 
 ### parallel for
 
@@ -206,13 +225,29 @@ for <var> in <value>:
 ```
 This translates to `map`.
 
+Example:
+
+```
+for a in [1, 2, 3]:
+  y = math.sqr(a)
+  return {
+    "b": y
+  }
+```
+
 ### return
 ```
 return <dict>
 ```
 This translates to `ret` in `python`. The key of the dict will be translated to the list in `ret`.
 
-
+Example:
+```
+y = math.sqr(1)
+return {
+  "b": y
+}
+```
 
 ## Data
 
