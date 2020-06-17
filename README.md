@@ -14,10 +14,10 @@ ret = run_python(number_of_workers = 4, pyf = "spec.py", dataf = "data.yml")
 
 ## Spec
 
-`tx-parallex` specs can be written in YAML or a Python-like DSL. The Python-like DSL is translated to YAML.
+`tx-parallex` specs can be written in YAML or a Python-like DSL. The Python-like DSL is translated to YAML. Each object in a spec specifies a task. When the task is executed, it is given a dict called `data`. The pipeline will return a dictionary.
 
 ### YAML
-Each object in a spec specifies a task. When the task is executed, it is given a dict called `data`. The pipeline will return a dictionary.
+
 
 #### `let`
 The `let` task sets `data` for its subtask. It adds new var value pairs into `data` within the scope of its subtask, and executes that task.
