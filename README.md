@@ -88,9 +88,10 @@ Example:
 ```
 type: map
 coll: 
-- 1
-- 2
-- 3
+  data:
+  - 1
+  - 2
+  - 3
 var: a
 sub:
   type: python
