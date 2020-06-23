@@ -5,16 +5,15 @@ def test_python_to_spec1():
     py = "a = mod1.mod2.func(param=arg)"
     spec = python_to_spec(py)
     assert spec == {
-            "type": "python",
-            "name": "a",
-            "mod": "mod1.mod2",
-            "func": "func",
-            "params": {
-                "param": {
-                    "name": "arg"
-                }
-            },
-            "ret": []
+        "type": "python",
+        "name": "a",
+        "mod": "mod1.mod2",
+        "func": "func",
+        "params": {
+            "param": {
+                "name": "arg"
+            }
+        }
     }
 
 
@@ -30,8 +29,7 @@ a = mod1.mod2.func(param=var)"""
             "name": "var",
             "mod": "mod3",
             "func": "func2",
-            "params": {},
-            "ret": []
+            "params": {}
         }, {
             "type": "python",
             "name": "a",
@@ -41,8 +39,7 @@ a = mod1.mod2.func(param=var)"""
                 "param": {
                     "depends_on": "var"
                 }
-            },
-            "ret": []
+            }
         }]       
     }
 
@@ -59,8 +56,7 @@ return {'ret1': a}"""
             "name": "var",
             "mod": "mod3",
             "func": "func2",
-            "params": {},
-            "ret": []
+            "params": {}
         }, {
             "type": "python",
             "name": "a",
@@ -70,8 +66,13 @@ return {'ret1': a}"""
                 "param": {
                     "depends_on": "var"
                 }
-            },
-            "ret": ["ret1"]
+            }
+        }, {
+            "type": "ret",
+            "var": "ret1",
+            "obj": {
+                "depends_on": "a"
+            }
         }]
     }
 
@@ -80,8 +81,9 @@ def test_python_to_spec4():
     spec = python_to_spec(py)
     assert spec == {
         "type":"let",
+        "var": "a",
         "obj": {
-            "a": 1
+            "data": 1
         },
         "sub": {
             "type": "top",
@@ -111,8 +113,7 @@ for i in c:
                     "r": {
                         "name": "i"
                     }
-                },
-                "ret": []
+                }
         }
     }
 
@@ -126,8 +127,9 @@ for i in c:
     spec = python_to_spec(py)
     assert spec == {
         "type": "let",
+        "var": "y",
         "obj": {
-            "y": 1
+            "data": 1
         },
         "sub": {
             "type": "map",
@@ -144,8 +146,7 @@ for i in c:
                         "r": {
                             "name": "i"
                         }
-                    },
-                    "ret": []
+                    }
             }
         }
     }
@@ -160,8 +161,9 @@ for i in c:
     spec = python_to_spec(py)
     assert spec == {
         "type": "let",
+        "var": "y",
         "obj": {
-            "y": 1
+            "data": 1
         },
         "sub": {
             "type": "map",
@@ -187,8 +189,7 @@ for i in c:
                             "t": {
                                 "name": "j"
                             }
-                        },
-                        "ret": []
+                        }
                 }
             }
         }
@@ -205,8 +206,9 @@ for i in c:
     spec = python_to_spec(py)
     assert spec == {
         "type": "let",
+        "var": "y",
         "obj": {
-            "y": 4
+            "data": 4
         },
         "sub": {
             "type": "map",
@@ -216,8 +218,9 @@ for i in c:
             },
             "sub": {
                 "type": "let",
+                "var": "z",
                 "obj": {
-                    "z": 390
+                    "data": 390
                 },
                 "sub": {
                     "type": "map",
@@ -237,8 +240,7 @@ for i in c:
                                 "t": {
                                     "name": "j"
                                 }
-                            },
-                            "ret": []
+                            }
                     }
                 }
             }
@@ -263,8 +265,7 @@ for i in c:
                 0: {
                     "name": "x"
                 }
-            },
-            "ret": []
+            }
         }, {
             "type": "map",
             "var": "i",
@@ -280,8 +281,7 @@ for i in c:
                     "u": {
                         "depends_on": "y"
                     }
-                },
-                "ret": []
+                }
             }
         }]
     }
@@ -299,8 +299,7 @@ def test_python_to_spec10():
                 0: {
                     "name": "i"
                 }
-            },
-            "ret": []
+            }
     }
 
 def test_python_to_spec11():
@@ -314,8 +313,9 @@ for j in c:
     spec = python_to_spec(py)
     assert spec == {
         "type": "let",
+        "var": "d",
         "obj": {
-            "d": [2,3]
+            "data": [2,3]
         },
         "sub": {
             "type": "top",
@@ -328,8 +328,7 @@ for j in c:
                     0: {
                         "name": "d"
                     }
-                },
-                "ret": []
+                }
             }, {
                 "type": "map",
                 "var": "j",
@@ -337,19 +336,27 @@ for j in c:
                     "depends_on": "c"
                 },
                 "sub": {
-                    "type": "python",
-                    "name": "a",
-                    "mod": "tests.test_task",
-                    "func": "g",
-                    "params": {
-                        "x": {
-                            "data": 2
-                        },
-                        "y": {
-                            "name": "j"
+                    "type": "top",
+                    "sub": [{
+                        "type": "python",
+                        "name": "a",
+                        "mod": "tests.test_task",
+                        "func": "g",
+                        "params": {
+                            "x": {
+                                "data": 2
+                            },
+                            "y": {
+                                "name": "j"
+                            }
                         }
-                    },
-                    "ret": ["x"]
+                    }, {
+                        "type": "ret",
+                        "var": "x",
+                        "obj": {
+                            "depends_on": "a"
+                        }
+                    }]
                 }
             }]
         }

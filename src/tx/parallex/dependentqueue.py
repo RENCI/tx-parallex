@@ -103,11 +103,10 @@ class NodeMap:
             if len(node.depends_on) == 0:
                 self.ready_queue.put((node, {}, node.subnode_depends_on, {}))
 
-    def complete_node(self, node_id, result):
+    def complete_node(self, node_id, ret, result):
         with self.lock:
-            logger.info(f"complete_node: {node_id} complete")
+            logger.info(f"complete_node: {node_id} complete, ret = {ret}")
             node = self.nodes[node_id]
-            ret_names = node.ret
             meta = self.meta[node_id]
             refs = meta.refs
             subnode_refs = meta.subnode_refs
@@ -131,9 +130,8 @@ class NodeMap:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_depends, refmeta.subnode_results)
                     logger.info(f"complete_node: ref = {ref}, len(refdep) == 0, task = {task}")
                     self.ready_queue.put(task)
-            for ret_name in ret_names:
-                # terminal node
-                self.outputs[ret_name] = result
+            logger.info(f"complete_node: updating outputs with {ret}")
+            self.outputs.update(ret)
             del self.meta[node_id]
             del self.nodes[node_id]
 
@@ -158,8 +156,8 @@ class DependentQueue:
         logger.info(f"DependentQueue.get: node = {node}, results = {results}")
         return node.get(), results, subnode_depends, subnode_results, node.node_id
         
-    def complete(self, node_id, x=None):
-        self.node_map.complete_node(node_id, x)
+    def complete(self, node_id, ret, x=None):
+        self.node_map.complete_node(node_id, ret, x)
         if self.node_map.empty():
             self.node_map.close()
 
@@ -181,8 +179,8 @@ class SubQueue:
     def get(self, *args, **kwargs):
         return self.subqueue.get(*args, **kwargs)
 
-    def complete(self, node_id, x=None):
-        self.queue.complete(node_id, x)
+    def complete(self, node_id, ret, x=None):
+        self.queue.complete(node_id, ret, x)
 
     def full(self):
         return self.subqueue.full()
