@@ -26,7 +26,8 @@ with open("README.md", "r") as fh:
             "more-itertools==8.2.0",
             "jsonschema==3.2.0",
             "pyyaml==5.3.1",
-            "tx-functional>=0.0.16"
+            "tx-functional>=0.0.16",
+            "graph-theory==2020.5.6.39102"
         ],
         classifiers=[
             "Programming Language :: Python :: 3",
