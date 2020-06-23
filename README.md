@@ -38,8 +38,9 @@ sub: <subtask>
 Example:
 ```
 type: let
+var: a
 obj:
-  a: 1
+  data: 1
 sub:
   type: python
   name: y
