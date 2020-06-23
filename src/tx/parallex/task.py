@@ -10,10 +10,13 @@ from multiprocessing import Manager
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For
 import logging
 import traceback
+from graph import Graph
+from functools import partial
+from copy import deepcopy
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
-from .python import python_to_spec
+from .python import python_to_spec, EnvStack2
 from .stack import Stack
 
 logging.basicConfig(level=logging.INFO)
@@ -80,7 +83,7 @@ class DynamicMap(BaseTask):
                 "data": results[self.coll_spec]
             },
             "sub": self.spec
-        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix)
+        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix, execute_unreachable=True)
         return {}, None
 
         
@@ -105,7 +108,7 @@ class DynamicGuard(BaseTask):
             },
             "then": self.then_spec,
             "else": self.else_spec
-        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix)
+        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix, execute_unreachable=True)
         return {}, None
     
         
@@ -206,6 +209,10 @@ def get_python_task_depends_on(sub):
         raise RuntimeError(f"get_task_depends_on: unsupported task {sub}")
 
 
+def get_dep_set(subs):
+    return {v["name"] for v in subs if v["type"] == "python"}
+
+    
 def get_task_depends_on(sub):
     if sub["type"] == "python":
         return {v["depends_on"] for _, v in sub.get("params", {}).items() if "depends_on" in v}
@@ -223,8 +230,11 @@ def get_task_depends_on(sub):
     elif sub["type"] == "let":
         return get_task_depends_on(sub["sub"])
     elif sub["type"] == "top":
-        dep_set = {v["name"] for v in sub["sub"] if v["type"] == "python"}
-        return set.union(*map(get_task_depends_on, sub["sub"])) - dep_set
+        dep_set = get_dep_set(sub["sub"])
+        if len(sub["sub"]) == 0:
+            return set()
+        else:
+            return set.union(*map(get_task_depends_on, sub["sub"])) - dep_set
     elif sub["type"] == "ret":
         dependencies = set()
         if "depends_on" in sub["obj"]:
@@ -237,6 +247,102 @@ def get_task_depends_on(sub):
 def get_task_non_dependency_params(spec):
     return {k: v for k, v in spec.get("params", {}).items() if "depends_on" not in v}
 
+
+no_op = {
+    "type": "top",
+    "sub": []
+}
+
+
+# remove tasks that do not provide a return value
+def remove_unreachable_tasks(spec):
+
+    def _remove_unreachable_tasks(dg, ret_ids, spec):
+    
+        logger.info(f"remote_unreachable_tasks: spec[\"node_id\"] = {spec['node_id']}")
+        if all(spec["node_id"] != a and not dg.is_connected(spec["node_id"], a) for a in ret_ids):
+            logger.info(f"remote_unreachable_tasks: {spec['node_id']} is unreachable, replace by noop")
+            return no_op
+        else:
+            if spec["type"] == "python":
+                return spec
+            elif spec["type"] == "map":
+                spec["sub"] = _remove_unreachable_tasks(dg, ret_ids, spec["sub"])
+                if spec["sub"] == no_op:
+                    return no_op
+                else:
+                    return spec
+            elif spec["type"] == "cond":
+                spec["then"] = _remove_unreachable_tasks(dg, ret_ids, spec["then"])
+                spec["else"] = _remove_unreachable_tasks(dg, ret_ids, spec["else"])
+                if spec["then"] == no_op and spec["else"] == no_op:
+                    return no_op
+                else:
+                    return spec
+            elif spec["type"] == "let":
+                spec["sub"] = _remove_unreachable_tasks(dg, ret_ids, spec["sub"])
+                if spec["sub"] == no_op:
+                    return no_op
+                else:                
+                    return spec
+            elif spec["type"] == "top":
+                spec["sub"] = list(filter(lambda c: c != no_op, map(partial(_remove_unreachable_tasks, dg, ret_ids), spec["sub"])))
+                return spec
+            elif spec["type"] == "ret":
+                return spec
+            else:
+                raise RuntimeError(f"remove_unreachable_tasks: unsupported task {spec}")
+
+    spec_original = deepcopy(spec)
+    dg, ret_ids = dependency_graph(spec)
+    logger.info(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
+    spec_simplified = _remove_unreachable_tasks(dg, ret_ids, spec)
+    logger.info(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
+    return spec_simplified
+
+
+def dependency_graph(spec):
+    g = Graph()
+    ret_ids = []
+    generate_dependency_graph(g, {}, EnvStack2(), ret_ids, spec, None)
+    return g, ret_ids
+
+
+def generate_dependency_graph(graph, node_map, dep_set, return_ids, sub, parent_node_id):
+    node_id = len(graph.nodes())
+    graph.add_node(node_id, [sub])
+    sub["node_id"] = node_id
+    if parent_node_id is not None:
+        graph.add_edge(parent_node_id, node_id)
+
+    if sub["type"] == "python":
+        for p in sub["params"].values():
+            if "depends_on" in p:
+                graph.add_edge(node_map[p["depends_on"]], node_id)
+        node_map[sub["name"]] = node_id
+    elif sub["type"] == "map":
+        if "depends_on" in sub["coll"]:
+            graph.add_edge(node_map[sub["coll"]["depends_on"]], node_id)
+        generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["sub"], node_id)
+    elif sub["type"] == "cond":
+        if "depends_on" in sub["on"]:
+            graph.add_edge(node_map[sub["on"]["depends_on"]], node_id)
+        generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["then"], node_id)
+        generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["else"], node_id)
+    elif sub["type"] == "let":
+        generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["sub"], node_id)
+    elif sub["type"] == "top":
+        subs = sub["sub"]
+        dep_set_sub = EnvStack2(dep_set, get_dep_set(subs))
+        for task in sort_tasks(dep_set, subs):
+            generate_dependency_graph(graph, node_map, dep_set_sub, return_ids, task, node_id)
+    elif sub["type"] == "ret":
+        if "depends_on" in sub["obj"]:
+            graph.add_edge(node_map[sub["obj"]["depends_on"]], node_id)
+        return_ids.append(node_id)
+    else:
+        raise RuntimeError(f"generate_dependency_graph: unsupported task {sub}")
+    
 
 def sort_tasks(dep_set, subs):
     copy = list(subs)
@@ -365,9 +471,9 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[]):
         raise RuntimeError(f'unsupported spec type {ty}')
 
 
-def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[]):
+def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False):
     job_ids = {}
-    for what in generate_tasks(spec, data, top=top, ret_prefix=ret_prefix):
+    for what in generate_tasks(spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix):
         job, dependencies, subnode_dependencies = what
         job_id = job.task_id
         job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)

@@ -35,7 +35,7 @@ def test_enqueue():
         }
         dq = DependentQueue(manager, EndOfQueue())
 
-        enqueue(spec, data, dq)
+        enqueue(spec, data, dq, execute_unreachable=True)
 
         n, r, f = dq.get(block=False)
         assert n.kwargs == {"x":1}
@@ -88,7 +88,7 @@ def test_enqueue_dependent():
         data = {}
         dq = DependentQueue(manager, EndOfQueue())
 
-        enqueue(spec, data, dq)
+        enqueue(spec, data, dq, execute_unreachable=True)
 
         n, r, f1 = dq.get(block=False)
         print(n)

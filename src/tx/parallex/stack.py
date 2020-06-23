@@ -1,3 +1,4 @@
+from itertools import chain
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -10,10 +11,16 @@ def Stack(base):
             self.curr = curr.copy()
 
         def __getitem__(self, key):
-            if key in self.curr:
-                return self.curr[key]
+            if isinstance(key, int):
+                if key < len(self.prev):
+                    return self.prev[key]
+                else:
+                    return self.curr[key - len(self.prev)]
             else:
-                return self.prev[key]
+                if key in self.curr:
+                    return self.curr[key]
+                else:
+                    return self.prev[key]
 
         def __setitem__(self, key, value):
             self.curr[key] = value
@@ -26,6 +33,12 @@ def Stack(base):
 
         def __str__(self):
             return f"{self.curr}>{self.prev}"
+
+        def __len__(self):
+            return len(self.curr) + len(self.prev)
+
+        def __iter__(self):
+            return chain(iter(self.prev), iter(self.curr))
 
         def keys(self):
             return self.curr.keys() | self.prev.keys()
