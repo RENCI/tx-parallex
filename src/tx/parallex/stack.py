@@ -1,8 +1,13 @@
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 def Stack(base):
     class _Stack:
         def __init__(self, prev = base, curr = base):
-            self.prev = prev
-            self.curr = curr
+            self.prev = prev.copy()
+            self.curr = curr.copy()
 
         def __getitem__(self, key):
             if key in self.curr:
@@ -21,6 +26,12 @@ def Stack(base):
 
         def __str__(self):
             return f"{self.curr}>{self.prev}"
+
+        def keys(self):
+            return self.curr.keys() | self.prev.keys()
+
+        def copy(self):
+            return _Stack(self.prev, self.curr)
             
 
     return _Stack

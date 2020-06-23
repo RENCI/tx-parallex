@@ -52,16 +52,36 @@
 	}, {
 	    "properties": {
 		"type": {
+		    "enum": ["cond"]
+		},
+		"on": {
+		    "$ref": "#/definitions/term"
+		},
+		"then": {
+		    "$ref": "#"
+		},
+		"else": {
+		    "$ref": "#"
+		}
+	    },
+	    "required": ["type", "on", "then", "else"],
+	    "additionalProperties": false
+	}, {
+	    "properties": {
+		"type": {
 		    "enum": ["let"]
 		},
+		"var": {
+		    "type": "string"
+		},
 		"obj": {
-		    "type": "object"
+		    "$ref": "#/definitions/term"
 		},
 		"sub": {
 		    "$ref": "#"
 		}
 	    },
-	    "required": ["type", "obj", "sub"],
+	    "required": ["type", "var", "obj", "sub"],
 	    "additionalProperties": false
 	}, {
 	    "properties": {
@@ -102,12 +122,6 @@
 		},
 		"name": {
 		    "type": "string"
-		},
-		"ret": {
-		    "type": "array",
-		    "items": {
-			"type": "string"
-		    }
 		}
 	    },
 	    "required": ["type", "name", "mod", "func"],
@@ -115,13 +129,16 @@
 	}, {
 	    "properties": {
 		"type": {
-		    "enum": ["dsl"]
+		    "enum": ["ret"]
 		},
-		"python": {
+		"var": {
 		    "type": "string"
+		},
+		"obj": {
+		    "$ref": "#/definitions/term"
 		}
 	    },
-	    "required": ["type", "python"],
+	    "required": ["type", "var", "obj"],
 	    "additionalProperties": false
 	}
     ]

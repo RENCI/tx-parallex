@@ -37,18 +37,18 @@ def test_enqueue():
 
         enqueue(spec, data, dq)
 
-        n, r, sd, sr, f = dq.get(block=False)
+        n, r, f = dq.get(block=False)
         assert n.kwargs == {"x":1}
         assert r == {}
-        dq.complete(f, 6)
-        n, r, sd, sr, f = dq.get(block=False)
+        dq.complete(f, {}, 6)
+        n, r, f = dq.get(block=False)
         assert n.kwargs == {"x":2}
         assert r == {}
-        dq.complete(f, 6)
-        n, r, sd, sr, f = dq.get(block=False)
+        dq.complete(f, {}, 6)
+        n, r, f = dq.get(block=False)
         assert n.kwargs == {"x":3}
-        dq.complete(f, 6)
-        n, r, sd, sr, f = dq.get(block=False)
+        dq.complete(f, {}, 6)
+        n, r, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -90,19 +90,19 @@ def test_enqueue_dependent():
 
         enqueue(spec, data, dq)
 
-        n, r, sd, sr, f1 = dq.get(block=False)
+        n, r, f1 = dq.get(block=False)
         print(n)
         assert r == {}
-        dq.complete(f1, 1)
-        n, r, sd, sr, f2 = dq.get(block=False)
+        dq.complete(f1, {}, 1)
+        n, r, f2 = dq.get(block=False)
         print(n)
         assert r == {f1:1}
-        dq.complete(f2, 2)
-        n, r, sd, sr, f = dq.get(block=False)
+        dq.complete(f2, {}, 2)
+        n, r, f = dq.get(block=False)
         print(n)
         assert r == {f2:2}
-        dq.complete(f, 3)
-        n, r, sd, sr, f = dq.get(block=False)
+        dq.complete(f, {}, 3)
+        n, r, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -116,20 +116,29 @@ def test_let():
     with Manager() as manager:
         spec = {
             "type":"let",
+            "var": "y",
             "obj": {
-                "y": 1
+                "data": 1
             },
             "sub": {
-                "type": "python",
-                "name": "a",
-                "mod": "tests.test_task",
-                "func": "identity",
-                "params": {
-                    "x": {
-                        "name": "y"
+                "type": "top",
+                "sub": [{
+                    "type": "python",
+                    "name": "a",
+                    "mod": "tests.test_task",
+                    "func": "identity",
+                    "params": {
+                        "x": {
+                            "name": "y"
+                        }
                     }
-                },
-                "ret": ["x"]
+                }, {
+                    "type": "ret",    
+                    "var": "x",
+                    "obj": {
+                        "depends_on": "a"
+                    }
+                }]
             }
         }
         data = {}
@@ -153,7 +162,6 @@ def test_start():
                 "name": "a",
                 "mod": "tests.test_task",
                 "func": "f",
-                "ret": ["x"],
                 "params": {
                     "x": {
                         "depends_on": "b"
@@ -179,6 +187,12 @@ def test_start():
                         "name": "y"
                     }
                 }
+            }, {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "depends_on": "a"
+                }
             }]
         }
         data = {"y": 1}
@@ -203,7 +217,6 @@ def test_map_start():
                     "name": "a",
                     "mod": "tests.test_task",
                     "func": "f",
-                    "ret": ["x"],
                     "params": {
                         "x": {
                             "depends_on": "b"
@@ -229,6 +242,12 @@ def test_map_start():
                             "name": "y"
                         }
                     }
+                }, {
+                    "type": "ret",
+                    "var": "x",
+                    "obj": {
+                        "depends_on": "a"
+                    }
                 }]
             }
         }
@@ -236,6 +255,148 @@ def test_map_start():
         
         ret = start(3, spec, data)
         assert ret == {"0.x": Right(4), "1.x": Right(5), "2.x": Right(6)}
+
+
+def test_cond_then_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type": "cond",
+            "on": {
+                "name": "z"
+            },
+            "then": {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "data": 1
+                }
+            },
+            "else": {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "data": 0
+                }
+            }
+        }
+        data = {"z": True}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(1)}
+
+
+def test_cond_else_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type": "cond",
+            "on": {
+                "name": "z"
+            },
+            "then": {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "data": 1
+                }
+            },
+            "else": {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "data": 0
+                }
+            }
+        }
+        data = {"z": False}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(0)}
+
+
+def false():
+    return False
+
+def true():
+    return True
+
+def test_dynamic_cond_then_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type": "top",
+            "sub":[{
+                "type": "python",
+                "name": "z",
+                "mod": "tests.test_task",
+                "func": "true",
+                "params": {
+                }
+            }, {
+                "type": "cond",
+                "on": {
+                    "depends_on": "z"
+                },
+                "then": {
+                    "type": "ret",
+                    "var": "x",
+                    "obj": {
+                        "data": 1
+                    }
+                },
+                "else": {
+                    "type": "ret",
+                    "var": "x",
+                    "obj": {
+                        "data": 0
+                    }
+                }
+            }]
+        }
+        data = {"z": True}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(1)}
+
+
+def test_dynamic_cond_else_start():
+    print("test_start")
+    with Manager() as manager:
+        spec = {
+            "type": "top",
+            "sub":[{
+                "type": "python",
+                "name": "z",
+                "mod": "tests.test_task",
+                "func": "false",
+                "params": {
+                }
+            }, {
+                "type": "cond",
+                "on": {
+                    "depends_on": "z"
+                },
+                "then": {
+                    "type": "ret",
+                    "var": "x",
+                    "obj": {
+                        "data": 1
+                    }
+                },
+                "else": {
+                    "type": "ret",
+                    "var": "x",
+                    "obj": {
+                        "data": 0
+                    }
+                }
+            }]
+        }
+        data = {"z": False}
+        
+        ret = start(3, spec, data)
+        assert ret == {"x": Right(0)}
 
 
 def test_dsl_start():
