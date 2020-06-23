@@ -25,15 +25,13 @@ def sqr(x):
 ```
 
 #### `let`
-The `let` task sets `data` for its subtask. It adds new var value pairs into `data` within the scope of its subtask, and executes that task.
+The `let` task sets `data` for its subtask. It adds a new var value pair into `data` within the scope of its subtask, and executes that task.
 
 Syntax:
 ```
 type: let
-obj: 
-  <var>: <value>
-  ...
-  <var>: <value>
+var: <var>
+obj: <value>
 sub: <subtask>
 ```
 
@@ -50,8 +48,6 @@ sub:
   params: 
     x:
       name: a
-  ret:
-  - b
 ```
 
 
@@ -101,8 +97,6 @@ sub:
   params: 
     x:
       name: a
-  ret:
-  - b
 ```
 
 ### `cond`
@@ -147,7 +141,6 @@ name: <name>
 mod: <module>
 func: <function>
 params: <parameters>
-ret: <returns>
 ```
 
 `<parameters>` is an object of the form:
@@ -158,16 +151,6 @@ ret: <returns>
 ```
 where `<param>` can be either name or position.
 
-`ret` specify a list of names that will map to the return value of task. The pipeline will return a dictionary containing these names. When a task appears under a `map` task, each name is prefix with the index of the element in that collection as following 
-
-```
-<index>.<name>
-```
-For nested maps, the indices will be chained together as followings
-```
-<index>. ... .<index>.<name>
-```
-
 Example:
 ```
   type: python
@@ -177,8 +160,6 @@ Example:
   params: 
     x:
       data: 1
-  ret:
-  - b
 ```
 ### `top`
 
@@ -210,9 +191,34 @@ sub:
   params: 
     x:
       depends_on: y
-  ret:
-  - c
 ```
+
+### `ret`
+`ret` specify a name that will map to a value. The pipeline will return a dictionary containing these names. When a task appears under a `map` task, each name is prefix with the index of the element in that collection as following 
+
+```
+<index>.<name>
+```
+For nested maps, the indices will be chained together as followings
+```
+<index>. ... .<index>.<name>
+```
+
+Syntax:
+```
+type: ret
+var: <var>
+obj: <value>
+```
+
+Example:
+```
+type: ret
+var: x
+obj: 
+    name: z
+```
+
 ## Python
 A dsl block contains a subset of Python.
 
@@ -268,11 +274,33 @@ for a in [1, 2, 3]:
   }
 ```
 
+### if
+```
+if <value>:
+    ...
+else:
+    ...
+```
+
+This translates to `cond`.
+
+Example:
+```
+if z:
+    return {
+        "x": 1
+    }
+else:
+    return {
+        "x": 0
+    }
+```
+
 ### return
 ```
 return <dict>
 ```
-This translates to `ret` in `python`. The key of the dict will be translated to the list in `ret`.
+This translates to `ret`. The key of the dict will be translated to the var in `ret`.
 
 Example:
 ```
