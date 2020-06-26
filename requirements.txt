@@ -6,3 +6,4 @@ more-itertools==8.2.0
 tx-functional>=0.0.16
 pyyaml==5.3.1
 graph-theory==2020.5.6.39102
+terminaltables==3.1.0
