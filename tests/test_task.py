@@ -510,7 +510,7 @@ def runtime_error():
 
 
 def return_error():
-    raise Left("errmsg")
+    return Left("errmsg")
 
 
 def test_exception_error():

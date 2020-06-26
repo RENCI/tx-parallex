@@ -14,9 +14,6 @@ from .dependentqueue import DependentQueue, SubQueue
 from .stack import Stack
 
 
-logging.basicConfig(level=logging.INFO)
-
-
 logger = logging.getLogger(__name__)
 
 

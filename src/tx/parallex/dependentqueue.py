@@ -3,9 +3,9 @@ from multiprocessing import Manager, Queue
 from uuid import uuid1
 import logging
 from tx.functional.either import Left, Right
+from tx.readable_log import format_message, getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__, logging.INFO)
 
 class Node:
     def __init__(self, o, node_id=None, ret=None, depends_on=set(), subnode_depends_on=set()):
@@ -82,9 +82,12 @@ class NodeMap:
         self.end_of_queue = end_of_queue
 
     def close(self):
-        self.ready_queue.put((Node(self.end_of_queue), {}))
+        with self.lock:
+            self.ready_queue.put((Node(self.end_of_queue), {}))
 
-    def add_node(self, node):
+    # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
+    # :type is_hold: boolean
+    def add_node(self, node, is_hold=False):
         with self.lock:
             if node.node_id in self.nodes:
                 raise RuntimeError(f"{node.node_id} is already in the map")
@@ -100,7 +103,7 @@ class NodeMap:
                 meta = self.meta.get(node_id, NodeMetadata())
                 meta.subnode_refs.add(node.node_id)
                 self.meta[node_id] = meta
-            if len(node.depends_on) == 0:
+            if not is_hold and len(node.depends_on) == 0:
                 self.ready_queue.put((node, {}))
 
     def complete_node(self, node_id, ret, result):
@@ -136,19 +139,21 @@ class NodeMap:
             del self.nodes[node_id]
 
     def get_next_ready_node(self, *args, **kwargs):
+        logger.info(f"NodeMap.get_next_ready_node: self.ready_queue.qsize() = {self.ready_queue.qsize()} len(self.nodes) = {len(self.nodes)}")
         return self.ready_queue.get(*args, **kwargs)
 
     def empty(self):
-        return len(self.nodes) == 0
+        with self.lock:
+            return len(self.nodes) == 0
 
         
 class DependentQueue:
     def __init__(self, manager, end_of_queue):
         self.node_map = NodeMap(manager, end_of_queue)
 
-    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set()):
+    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set(), is_hold=False):
         node = Node(o, node_id=job_id, ret=ret, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
-        self.node_map.add_node(node)
+        self.node_map.add_node(node, is_hold=is_hold)
         return node.node_id
 
     def get(self, *args, **kwargs):
@@ -170,8 +175,8 @@ class SubQueue:
         self.queue = queue
         self.subqueue = Queue()
 
-    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set()):
-        return self.queue.put(o, job_id, ret, depends_on, subnode_depends_on)
+    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set(), is_hold=False):
+        return self.queue.put(o, job_id, ret, depends_on, subnode_depends_on, is_hold=is_hold)
     
     def put_in_subqueue(self, o):
         self.subqueue.put(o)
