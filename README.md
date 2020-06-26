@@ -129,34 +129,7 @@ else:
     data: 0
 ```
 
-### `cond`
-The `cond` task reads a boolean value and if it is true then it executes the `then` task otherwise it executes the `else` task.
 
-Syntax:
-```
-type: cond
-on: <value>
-then: <subtask>
-else: <subtask>
-```
-
-Example:
-```
-type: cond
-on: 
-  data:
-    true
-then:
-  type: ret
-  var: x
-  obj:
-    data: 1
-else:
-  type: ret
-  var: x
-  obj:
-    data: 0
-```
 
 ### `python`
 
