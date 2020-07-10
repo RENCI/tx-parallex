@@ -323,6 +323,7 @@ else:
     }
 ```
 
+The semantics of if is different from python, variables inside if is not visible outside
 ### return
 ```
 return <dict>
