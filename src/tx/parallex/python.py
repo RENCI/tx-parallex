@@ -7,7 +7,7 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp
 import logging
 from importlib import import_module
 from tx.functional.either import Left, Right, Either
@@ -131,6 +131,12 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
     elif isinstance(expr, UnaryOp):
         operand, assigns = extract_expressions_to_assignments_in_expression(expr.operand, counter)
         expr_eta = UnaryOp(op=expr.op, operand=operand)
+    elif isinstance(expr, IfExp):
+        test, assigns_test = extract_expressions_to_assignments_in_expression(expr.test, counter + ["test"])
+        body, assigns_body = extract_expressions_to_assignments_in_expression(expr.body, counter + ["body"])
+        orelse, assigns_orelse = extract_expressions_to_assignments_in_expression(expr.orelse, counter + ["orelse"])
+        expr_eta = IfExp(test=test, body=body, orelse=orelse)
+        assigns = assigns_test + assigns_body + assigns_orelse
     else:
         return expr, []
     if in_assignment:
@@ -156,7 +162,7 @@ def python_to_spec(py):
     
 
 def is_dynamic(stmt):
-    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare)
+    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp)
 
 
 def python_to_spec_seq(body, dep_set, imported_names = []):
@@ -219,7 +225,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             "type": "cond",
             "on": cond_name,
             "then": python_to_spec_seq(stmt.body, EnvStack2(dep_set)),
-            "else": python_to_spec_seq(stmt.orelse, EnvStack2(dep_set))
+            "else": python_to_spec_seq(stmt.orelse, EnvStack2(dep_set)),
         }]
     elif isinstance(stmt, Return):
         ret = stmt.value
@@ -333,6 +339,15 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
                 func = "_and"
             elif isinstance(op, Or):
                 func = "_or"
+
+        elif isinstance(app, IfExp):
+            keywords = {
+                0: app.test,
+                1: app.body,
+                2: app.orelse
+            }
+            mod = "tx.parallex.data"
+            func = "_if_exp"
                 
         params = {k: python_ast_to_arg(v) for k, v in keywords.items() if not isinstance(v, Name) or v.id not in dep_set}
         dependencies = {k: {

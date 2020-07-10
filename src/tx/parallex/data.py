@@ -84,3 +84,6 @@ def _u_add(a):
 
 def _u_sub(a):
     return -a
+
+def _if_exp(t,b,o):
+    return b if t else o

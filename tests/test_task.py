@@ -536,6 +536,19 @@ return {"t": a}"""
         assert ret == {f"t": Right(True)}
 
         
+def test_if_exp():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = 1 if True else 0
+return {"t": a}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {f"t": Right(1)}
+
+        
 def runtime_error():
     raise RuntimeError()
 
