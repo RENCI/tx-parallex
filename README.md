@@ -1,6 +1,27 @@
 [![Build Status](https://travis-ci.com/RENCI/tx-parallex.svg?branch=master)](https://travis-ci.com/RENCI/tx-parallex)
 
 # `parallex`
+## System Requirements
+Python >= 3.8
+## Install
+1. Clone the repo
+2. Easy install instructions:
+```
+# Create a virtual environment called 'px'
+conda create -n px python=3.8
+# start-up the environment you just created
+conda activate px
+# install the rest of the tx-parallex pre-requirements
+pip install -r requirements.txt
+```
+3. Test
+```
+# run the tests, a number of test 'specs'
+PYTHONPATH=src pytest -x -vv --full-trace -s --timeout 10
+# deactivate the environment (if desired)
+conda deactivate
+```
+
 ## Introduction
 A queue with dependencies
 
