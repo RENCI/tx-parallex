@@ -125,6 +125,9 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         values, assign_lists = zip(*(extract_expressions_to_assignments_in_expression(value, counter + [i]) for i, value in enumerate(expr.values)))
         assigns = list(chain(*assign_lists))
         expr_eta = BoolOp(op=expr.op, values=list(values))
+    elif isinstance(expr, UnaryOp):
+        operand, assigns = extract_expressions_to_assignments_in_expression(expr.operand, counter)
+        expr_eta = UnaryOp(op=expr.op, operand=operand)
     else:
         return expr, []
     if in_assignment:

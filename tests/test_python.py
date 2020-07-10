@@ -687,6 +687,30 @@ a = _var_0_left @ _var_0_right
 """
     do_compare_expression(py, py2)
 
+def test_expression_to_assigns13():
+    py = """
+a = ~c()
+"""
+    py2 = """
+_var_0 = c()
+a = ~_var_0
+"""
+    do_compare_expression(py, py2)
+
+
+def test_expression_to_assigns14():
+    py = """
+a = c() and d() and e()
+"""
+    py2 = """
+_var_0_0 = c()
+_var_0_1 = d()
+_var_0_2 = e()
+a = _var_0_0 and _var_0_1 and _var_0_2
+"""
+    do_compare_expression(py, py2)
+
+
 def test_python_to_spec16():
     py = """
 a = 1 + 2
@@ -774,6 +798,32 @@ a = 1 / 2
             },
             1: {
                 "data": 2
+            }
+        }
+    }
+
+
+def test_python_to_spec20():
+    py = """
+z = a and b and c
+"""
+
+    spec = python_to_spec(py)
+
+    assert spec == {
+        "type": "python",
+        "name": "z",
+        "mod": "tx.parallex.data",
+        "func": "_and",
+        "params": {
+            0: {
+                "name": "a"
+            },
+            1: {
+                "name": "b"
+            },
+            2: {
+                "name": "c"
             }
         }
     }
