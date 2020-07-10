@@ -261,7 +261,7 @@ return {
 ### function application
 
 ```
-<var> = <module>.<func>(<param>=<expr>, ...) | <expr>
+<var> = [<module>.]<func>(<param>=<expr>, ...) | <expr>
 ```
 
 This translate to `python`.
