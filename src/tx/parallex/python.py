@@ -7,8 +7,9 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute
 import logging
+from importlib import import_module
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 from .stack import Stack
@@ -73,6 +74,8 @@ def extract_expressions_to_assignments(stmts, counter=[]):
 # assuming that var with name _var[x] is not used
 # todo: check for var name
 def extract_expressions_to_assignments_in_statement(stmt, counter):
+    if isinstance(stmt, ImportFrom):
+        return [stmt]
     if isinstance(stmt, For):
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.iter, counter)
         stmt_eta = For(target=stmt.target, iter=expr, body=extract_expressions_to_assignments(stmt.body, counter), orelse=stmt.orelse, type_comment=stmt.type_comment)
@@ -156,21 +159,23 @@ def is_dynamic(stmt):
     return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare)
 
 
-def python_to_spec_seq(body, dep_set):
+def python_to_spec_seq(body, dep_set, imported_names = []):
     def func(stmts):
-            apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
-            fors = [stmt for stmt in stmts if isinstance(stmt, For)]
-            ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
-            returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
-            dep_set2 = dep_set | {app.targets[0].id for app in apps}
+        importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
+        imported_names = {func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}
+        apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
+        fors = [stmt for stmt in stmts if isinstance(stmt, For)]
+        ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
+        returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
+        dep_set2 = dep_set | {app.targets[0].id for app in apps}
     
-            return python_to_top_spec(apps + fors + ifs + returns, dep_set2)
+        return python_to_top_spec(apps + fors + ifs + returns, dep_set2, imported_names)
     
     return let_spec(body, func)
 
 
-def python_to_top_spec(body, dep_set):
-    specs = list(chain.from_iterable(python_to_spec_in_top(stmt, dep_set) for stmt in body))
+def python_to_top_spec(body, dep_set, imported_names):
+    specs = list(chain.from_iterable(python_to_spec_in_top(stmt, dep_set, imported_names) for stmt in body))
     if len(specs) == 1:
         return specs[0]
     else:
@@ -199,7 +204,7 @@ def python_ast_to_term(dep_set, iter):
     return coll_name
 
 
-def python_to_spec_in_top(stmt, dep_set):
+def python_to_spec_in_top(stmt, dep_set, imported_names):
     if isinstance(stmt, For):
         coll_name = python_ast_to_term(dep_set, stmt.iter)
         return [{
@@ -234,8 +239,12 @@ def python_to_spec_in_top(stmt, dep_set):
                 **{keyword.arg: keyword.value for keyword in app.keywords},
                 **{i: value for i, value in enumerate(app.args)}
             }
-            func = fqfunc.attr
-            mod = to_mod(fqfunc.value)
+            if isinstance(fqfunc, Attribute):
+                func = fqfunc.attr
+                mod = to_mod(fqfunc.value)
+            else:
+                func = fqfunc.id
+                mod = imported_names[func]
             # logger.info(f"dep_set = {dep_set}")
         elif isinstance(app, Compare):
             if len(app.ops) > 1:

@@ -827,3 +827,47 @@ z = a and b and c
             }
         }
     }
+
+
+def func(x):
+    return x
+
+
+def test_python_to_spec21():
+    py = """
+from tests.test_python import func
+a = func(param=arg)
+"""
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tests.test_python",
+        "func": "func",
+        "params": {
+            "param": {
+                "name": "arg"
+            }
+        }
+    }
+
+
+def test_python_to_spec22():
+    py = """
+from tests.test_python import *
+a = func(param=arg)
+"""
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tests.test_python",
+        "func": "func",
+        "params": {
+            "param": {
+                "name": "arg"
+            }
+        }
+    }
+
+
