@@ -523,6 +523,19 @@ for s in [1,2,3,4,5,6,7]:
         assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
 
         
+def test_system_function():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = all([True])
+return {"t": a}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {f"t": Right(True)}
+
+        
 def runtime_error():
     raise RuntimeError()
 

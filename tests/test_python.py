@@ -870,4 +870,20 @@ a = func(param=arg)
         }
     }
 
+def test_python_to_spec23():
+    py = """
+a = all([True])
+"""
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "",
+        "func": "all",
+        "params": {
+            0: {
+                "data": [True]
+            }
+        }
+    }
 

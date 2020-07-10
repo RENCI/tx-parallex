@@ -14,6 +14,7 @@ from graph import Graph
 from functools import partial
 from copy import deepcopy
 from ctypes import c_int
+import builtins
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
@@ -74,7 +75,7 @@ class Task(BaseTask):
     __str__, __unicode__ = autotext("Task({self.task_id} {self.name} {self.mod}.{self.func} {self.args_spec} {self.kwargs_spec} {self.args} {self.kwargs})")
 
     def baseRun(self, results, queue):
-        mod = import_module(self.mod)
+        mod = import_module(self.mod) if self.mod != "" else builtins
         func = getattr(mod, self.func)
         args = substitute_list(results, self.args_spec)
         kwargs = substitute_dict(results, self.kwargs_spec)
