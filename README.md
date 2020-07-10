@@ -227,6 +227,17 @@ A dsl block contains a subset of Python.
 
 Available syntax:
 
+### import
+
+```
+from <module> import *
+from <module> import <func>, ..., <func>
+```
+
+import names from module
+
+`<module>` absolute module names
+
 ### assignment
 ```
 <var> = <const>
