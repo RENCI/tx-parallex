@@ -452,11 +452,11 @@ for j in c:
 
 
 def test_dynamic_for_10():
-    for i in range(10):
+    for i in range(20):
         logger.info(f"test start {i} ***************************************")
         with Manager() as manager:
             py = """
-d = [2,3]
+d = [1]
 c = tests.test_task.identity(d)
 for j in c:
     a = tests.test_task.g(x=2,y=j)
