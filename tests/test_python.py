@@ -1,4 +1,5 @@
-from tx.parallex.python import python_to_spec
+import ast
+from tx.parallex.python import python_to_spec, extract_expressions_to_assignments
 from tx.functional.either import Left, Right
 
 def test_python_to_spec1():
@@ -535,4 +536,244 @@ else:
         }]
     }
 
+def do_compare_expression(py, py2):
+    py_ast = ast.parse(py)
+    py_ast_dump = ast.dump(ast.Module(body=extract_expressions_to_assignments(py_ast.body), type_ignores=py_ast.type_ignores))
+    ast2 = ast.dump(ast.parse(py2))
+    assert py_ast_dump == ast2
 
+
+def test_expression_to_assigns1():
+    py = """
+z = f(g())
+"""
+    py2 = """
+_var_0_0 = g()
+z = f(_var_0_0)
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns2():
+    py = """
+z = f(g(c(),d()))
+"""
+    py2 = """
+_var_0_0_0 = c()
+_var_0_0_1 = d()
+_var_0_0 = g(_var_0_0_0, _var_0_0_1)
+z = f(_var_0_0)
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns3():
+    py = """
+z = f(g(i=c(),j=d()))
+"""
+    py2 = """
+_var_0_0_i = c()
+_var_0_0_j = d()
+_var_0_0 = g(i=_var_0_0_i, j=_var_0_0_j)
+z = f(_var_0_0)
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns4():
+    py = """
+for i in f():
+    return {"i":i}
+"""
+    py2 = """
+_var_0 = f()
+for i in _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns5():
+    py = """
+if f():
+    return {"i":i}
+"""
+    py2 = """
+_var_0 = f()
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns6():
+    py = """
+if a == b:
+    return {"i":i}
+"""
+    py2 = """
+_var_0 = a == b
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns7():
+    py = """
+if a and b:
+    return {"i":i}
+"""
+    py2 = """
+_var_0 = a and b
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns8():
+    py = """
+if a in b:
+    return {"i":i}
+"""
+    py2 = """
+_var_0 = a in b
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns9():
+    py = """
+if c() and d():
+    return {"i":i}
+"""
+    py2 = """
+_var_0_0 = c()
+_var_0_1 = d()
+_var_0 = _var_0_0 and _var_0_1
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns10():
+    py = """
+if c() in d():
+    return {"i":i}
+"""
+    py2 = """
+_var_0_left = c()
+_var_0_comparator_0 = d()
+_var_0 = _var_0_left in _var_0_comparator_0
+if _var_0:
+    return {"i":i}
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns11():
+    py = """
+a = c() + d()
+"""
+    py2 = """
+_var_0_left = c()
+_var_0_right = d()
+a = _var_0_left + _var_0_right
+"""
+    do_compare_expression(py, py2)
+
+def test_expression_to_assigns12():
+    py = """
+a = c() @ d()
+"""
+    py2 = """
+_var_0_left = c()
+_var_0_right = d()
+a = _var_0_left @ _var_0_right
+"""
+    do_compare_expression(py, py2)
+
+def test_python_to_spec16():
+    py = """
+a = 1 + 2
+"""
+
+    spec = python_to_spec(py)
+
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tx.parallex.data",
+        "func": "_add",
+        "params": {
+            0: {
+                "data": 1
+            },
+            1: {
+                "data": 2
+            }
+        }
+    }
+
+
+def test_python_to_spec17():
+    py = """
+a = 1 - 2
+"""
+
+    spec = python_to_spec(py)
+
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tx.parallex.data",
+        "func": "_sub",
+        "params": {
+            0: {
+                "data": 1
+            },
+            1: {
+                "data": 2
+            }
+        }
+    }
+
+
+def test_python_to_spec18():
+    py = """
+a = 1 * 2
+"""
+
+    spec = python_to_spec(py)
+
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tx.parallex.data",
+        "func": "_mult",
+        "params": {
+            0: {
+                "data": 1
+            },
+            1: {
+                "data": 2
+            }
+        }
+    }
+
+
+def test_python_to_spec19():
+    py = """
+a = 1 / 2
+"""
+
+    spec = python_to_spec(py)
+
+    assert spec == {
+        "type": "python",
+        "name": "a",
+        "mod": "tx.parallex.data",
+        "func": "_div",
+        "params": {
+            0: {
+                "data": 1
+            },
+            1: {
+                "data": 2
+            }
+        }
+    }
