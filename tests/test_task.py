@@ -459,13 +459,13 @@ def test_dynamic_for_10():
 d = [1]
 c = tests.test_task.identity(d)
 for j in c:
-    a = tests.test_task.g(x=2,y=j)
+    a = j + 3
     return {"x": a}"""
 
             data = {}
         
             ret = start_python(3, py, data)
-            assert ret == {"0.x": Right(4), "1.x": Right(5)}
+            assert ret == {"0.x": Right(4)}
 
 
 def test_data_start():
