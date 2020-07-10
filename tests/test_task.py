@@ -456,16 +456,15 @@ def test_dynamic_for_10():
         logger.info(f"test start {i} ***************************************")
         with Manager() as manager:
             py = """
-d = [1]
-c = tests.test_task.identity(d)
+c = tests.test_task.identity([1])
 for j in c:
-    a = j + 3
+    a = j + 2
     return {"x": a}"""
 
             data = {}
         
             ret = start_python(3, py, data)
-            assert ret == {"0.x": Right(4)}
+            assert ret == {"0.x": Right(3)}
 
 
 def test_data_start():
