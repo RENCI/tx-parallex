@@ -245,6 +245,8 @@ import names from module
 where
 ```
 <const> = <integer> | <number> | <boolean> | <string> | <list> | <dict>
+```
+
 This translates to `let`.
 
 Example:
@@ -257,15 +259,19 @@ return {
 ```
 
 ### function application
+
 ```
 <var> = <module>.<func>(<param>=<expr>, ...) | <expr>
 ```
+
 This translate to `python`.
 where `<var>` is `name`
 `<expr>` is
+
 ```
 <expr> = <expr> <binop> <expr> | <expr> <boolop> <expr> | <expr> <compare> <expr> | <unaryop> <expr> | <var> | <const>
 ```
+
 `<binop>`, `<boolop>` and `<compare>` and `<unaryop>` are python BinOp, BoolOp, Compare, and UnaryOp. `<expr>` is translated to a set of assignments, `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
 
 Example:
