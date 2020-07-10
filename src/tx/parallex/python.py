@@ -166,17 +166,18 @@ def is_dynamic(stmt):
     return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp)
 
 
-def python_to_spec_seq(body, dep_set, imported_names = []):
+def python_to_spec_seq(body, dep_set, imported_names = {}):
     def func(stmts):
         importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
-        imported_names = {**{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
+        imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
+        logger.info(f"imported_names2 = {imported_names2}")
         apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
         returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
         dep_set2 = dep_set | {app.targets[0].id for app in apps}
     
-        return python_to_top_spec(apps + fors + ifs + returns, dep_set2, imported_names)
+        return python_to_top_spec(apps + fors + ifs + returns, dep_set2, imported_names2)
     
     return let_spec(body, func)
 
@@ -218,15 +219,15 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             "type": "map",
             "var": stmt.target.id,
             "coll": coll_name,
-            "sub": python_to_spec_seq(stmt.body, EnvStack2(dep_set))
+            "sub": python_to_spec_seq(stmt.body, EnvStack2(dep_set), imported_names)
         }]
     elif isinstance(stmt, If):
         cond_name = python_ast_to_term(dep_set, stmt.test)
         return [{
             "type": "cond",
             "on": cond_name,
-            "then": python_to_spec_seq(stmt.body, EnvStack2(dep_set)),
-            "else": python_to_spec_seq(stmt.orelse, EnvStack2(dep_set)),
+            "then": python_to_spec_seq(stmt.body, EnvStack2(dep_set), imported_names),
+            "else": python_to_spec_seq(stmt.orelse, EnvStack2(dep_set), imported_names),
         }]
     elif isinstance(stmt, Return):
         ret = stmt.value

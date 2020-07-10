@@ -853,6 +853,33 @@ a = func(param=arg)
     }
 
 
+def test_python_to_spec21():
+    py = """
+from tests.test_python import func
+for i in a:
+    a = func(param=arg)
+"""
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "map",
+        "coll": {
+            "name": "a"
+        },
+        "var": "i",
+        "sub": {
+            "type": "python",
+            "name": "a",
+            "mod": "tests.test_python",
+            "func": "func",
+            "params": {
+                "param": {
+                    "name": "arg"
+                }
+            }
+        }
+    }
+
+
 def test_python_to_spec22():
     py = """
 from tests.test_python import *
