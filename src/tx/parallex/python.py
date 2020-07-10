@@ -244,7 +244,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
                 mod = to_mod(fqfunc.value)
             else:
                 func = fqfunc.id
-                mod = imported_names[func]
+                mod = imported_names.get(func, "")
             # logger.info(f"dep_set = {dep_set}")
         elif isinstance(app, Compare):
             if len(app.ops) > 1:
