@@ -1,4 +1,5 @@
 import ast
+import pytest
 from tx.parallex.python import python_to_spec, extract_expressions_to_assignments
 from tx.functional.either import Left, Right
 
@@ -886,4 +887,12 @@ a = all([True])
             }
         }
     }
+
+def test_python_to_spec24():
+    py = """
+a = allx([True])
+"""
+    with pytest.raises(KeyError):
+        spec = python_to_spec(py)
+
 

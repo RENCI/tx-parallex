@@ -10,6 +10,7 @@ from multiprocessing import Manager
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp
 import logging
 from importlib import import_module
+import builtins
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue, SubQueue
 from .stack import Stack
@@ -168,7 +169,7 @@ def is_dynamic(stmt):
 def python_to_spec_seq(body, dep_set, imported_names = []):
     def func(stmts):
         importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
-        imported_names = {func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}
+        imported_names = {**{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
         apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
@@ -250,7 +251,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
                 mod = to_mod(fqfunc.value)
             else:
                 func = fqfunc.id
-                mod = imported_names.get(func, "")
+                mod = imported_names[func]
             # logger.info(f"dep_set = {dep_set}")
         elif isinstance(app, Compare):
             if len(app.ops) > 1:
