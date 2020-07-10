@@ -109,7 +109,7 @@ class DynamicMap(BaseTask):
             },
             "sub": self.spec
         }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
-        queue.complete(hold_id, {}, None)
+        queue.complete(hold_id, {}, Right(None))
         logger.info(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
         return {}, None
 
@@ -212,7 +212,7 @@ def mbind(job_run, params, sub_queue):
         else:
             resultv[k] = v.value
     if not error:
-        logger.info(f"mbind: running {job_run}")
+        # logger.info(f"mbind: running {job_run}")
         ret, resultj = job_run(resultv, sub_queue)
         if not isinstance(resultj, Either):
             resultj = Right(resultj)
@@ -305,9 +305,9 @@ def remove_unreachable_tasks(spec):
 
     def _remove_unreachable_tasks(dg, ret_ids, spec):
     
-        logger.info(f"remote_unreachable_tasks: spec[\"node_id\"] = {spec['node_id']}")
+        # logger.info(f"remote_unreachable_tasks: spec[\"node_id\"] = {spec['node_id']}")
         if all(spec["node_id"] != a and not dg.is_connected(spec["node_id"], a) for a in ret_ids):
-            logger.info(f"remote_unreachable_tasks: {spec['node_id']} is unreachable, replace by noop")
+            # logger.info(f"remote_unreachable_tasks: {spec['node_id']} is unreachable, replace by noop")
             return no_op
         else:
             if spec["type"] == "python":
@@ -341,9 +341,9 @@ def remove_unreachable_tasks(spec):
 
     spec_original = deepcopy(spec)
     dg, ret_ids = dependency_graph(spec)
-    logger.info(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
+    # logger.info(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
     spec_simplified = _remove_unreachable_tasks(dg, ret_ids, spec)
-    logger.info(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
+    # logger.info(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
     return spec_simplified
 
 
@@ -443,7 +443,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         obj = spec["obj"]
         sub = spec["sub"]
         data2 = {**data, var: arg_spec_to_arg(data, obj)}
-        yield from generate_tasks(sub, data2, top=EnvStack(top), ret_prefix=ret_prefix)
+        yield from generate_tasks(sub, data2, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "map":
         coll_name = spec["coll"]
         var = spec["var"]
@@ -459,7 +459,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
             yield task, dep | hold, subnode_dep 
         else:
             coll = arg_spec_to_arg(data, coll_name)
-            yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i]) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
+            yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
     elif ty == "cond":
         cond_name = spec["on"]
         then_spec = spec["then"]
@@ -475,15 +475,15 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         else:
             coll = arg_spec_to_arg(data, cond_name)
             if coll:
-                yield from generate_tasks(then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix)
+                yield from generate_tasks(then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
             else:
-                yield from generate_tasks(else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix)
+                yield from generate_tasks(else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "top":
         subs = spec["sub"]
         subs_sorted = sort_tasks(top.keys(), subs)
         top = EnvStack(top)
         for sub in subs_sorted:
-            yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix)
+            yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
     elif ty == "python":
 #        logger.info(f"add task: dependencies = {get_python_task_depends_on(spec)}\ntop = {top}")
         name = spec["name"]

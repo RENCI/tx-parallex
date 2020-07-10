@@ -229,8 +229,11 @@ Available syntax:
 
 ### assignment
 ```
-<var> = <const> | <list> | <dict>
+<var> = <const>
 ```
+where
+```
+<const> = <integer> | <number> | <boolean> | <string> | <list> | <dict>
 This translates to `let`.
 
 Example:
@@ -244,11 +247,15 @@ return {
 
 ### function application
 ```
-<var> = <module>.<func>(<param>=<arg>, ...)
+<var> = <module>.<func>(<param>=<expr>, ...) | <expr>
 ```
 This translate to `python`.
 where `<var>` is `name`
-`<arg>` is translated to `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
+`<expr>` is
+```
+<expr> = <expr> <binop> <expr> | <expr> <boolop> <expr> | <expr> <compare> <expr> | <unaryop> <expr> | <var> | <const>
+```
+`<binop>`, `<boolop>` and `<compare>` and `<unaryop>` are python BinOp, BoolOp, Compare, and UnaryOp. `<expr>` is translated to a set of assignments, `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
 
 Example:
 ```
@@ -262,7 +269,7 @@ return {
 ### parallel for
 
 ```
-for <var> in <value>:
+for <var> in <expr>:
     ...
 ```
 This translates to `map`.
@@ -279,7 +286,7 @@ for a in [1, 2, 3]:
 
 ### if
 ```
-if <value>:
+if <expr>:
     ...
 else:
     ...

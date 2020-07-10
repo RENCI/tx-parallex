@@ -1,10 +1,14 @@
 from multiprocessing import Manager
 from queue import Empty
+import logging
 import pytest
 from tx.parallex import start, start_python
 from tx.parallex.task import enqueue, EndOfQueue
 from tx.parallex.dependentqueue import DependentQueue
 from tx.functional.either import Left, Right
+from tx.readable_log import getLogger
+
+logger = getLogger(__name__, logging.INFO)
 
 def test_enqueue():
     print("test_enqueue")
@@ -445,6 +449,23 @@ for j in c:
         
         ret = start_python(3, py, data)
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
+
+
+def test_dynamic_for_10():
+    for i in range(10):
+        logger.info(f"test start {i} ***************************************")
+        with Manager() as manager:
+            py = """
+d = [2,3]
+c = tests.test_task.identity(d)
+for j in c:
+    a = tests.test_task.g(x=2,y=j)
+    return {"x": a}"""
+
+            data = {}
+        
+            ret = start_python(3, py, data)
+            assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
 def test_data_start():
