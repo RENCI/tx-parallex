@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
     setuptools.setup(
         name="tx-parallex",
-        version="0.0.39",
+        version="0.0.40",
         license="MIT",
         author="Hao Xu",
         author_email="xuhao@renci.org",
@@ -35,7 +35,7 @@ with open("README.md", "r") as fh:
             "License :: OSI Approved :: MIT License",
             "Operating System :: OS Independent",
         ],
-        python_requires='>=3.6',
+        python_requires='>=3.8',
     )
 
 
