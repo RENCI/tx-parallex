@@ -1,9 +1,16 @@
 [![Build Status](https://travis-ci.com/RENCI/tx-parallex.svg?branch=master)](https://travis-ci.com/RENCI/tx-parallex)
 
 # `parallex`
+
+
 ## System Requirements
 Python >= 3.8
-## Install
+## install
+
+```
+pip install tx-parallex
+```
+## Install from source
 1. Clone the repo
 2. Easy install instructions:
 ```
@@ -21,6 +28,8 @@ PYTHONPATH=src pytest -x -vv --full-trace -s --timeout 10
 # deactivate the environment (if desired)
 conda deactivate
 ```
+## set log level
+set environment variable LOG_LEVEL to one of Python's logging library setLevel.
 
 ## Introduction
 A queue with dependencies
