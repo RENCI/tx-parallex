@@ -111,7 +111,7 @@ class DynamicMap(BaseTask):
             },
             "sub": self.spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
-        queue.complete(hold_id, {}, Right(None))
+        queue.complete(hold_id, {}, Nothing)
         logger.info(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
         return {}, None
 
@@ -141,7 +141,7 @@ class DynamicGuard(BaseTask):
             "then": self.then_spec,
             "else": self.else_spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
-        queue.complete(hold_id, {}, None)
+        queue.complete(hold_id, {}, Nothing)
         logger.info(f"DynamicCond.baseRun: remove hold task from queue {hold_id}")
         return {}, None
     
@@ -254,7 +254,7 @@ def work_on(sub_queue):
             #     "params": results
             # }))
             logger.info(f"task finish {type(job)} {jid}")
-            sub_queue.complete(jid, ret, resultj)
+            sub_queue.complete(jid, ret, Just(resultj))
     
 
 def depends_on(top, v):

@@ -5,6 +5,7 @@ import pytest
 from tx.parallex import start, start_python
 from tx.parallex.task import enqueue, EndOfQueue
 from tx.parallex.dependentqueue import DependentQueue
+from tx.functional.maybe import Just
 from tx.functional.either import Left, Right
 from tx.readable_log import getLogger
 
@@ -44,14 +45,14 @@ def test_enqueue():
         n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":1}
         assert r == {}
-        dq.complete(f, {}, 6)
+        dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":2}
         assert r == {}
-        dq.complete(f, {}, 6)
+        dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":3}
-        dq.complete(f, {}, 6)
+        dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
@@ -97,15 +98,15 @@ def test_enqueue_dependent():
         n, r, sr, f1 = dq.get(block=False)
         print(n)
         assert r == {}
-        dq.complete(f1, {}, 1)
+        dq.complete(f1, {}, Just(1))
         n, r, sr, f2 = dq.get(block=False)
         print(n)
         assert r == {f1:1}
-        dq.complete(f2, {}, 2)
+        dq.complete(f2, {}, Just(2))
         n, r, sr, f = dq.get(block=False)
         print(n)
         assert r == {f2:2}
-        dq.complete(f, {}, 3)
+        dq.complete(f, {}, Just(3))
         n, r, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
@@ -603,6 +604,21 @@ else:
         assert ret == {"i": Right(False)}
 
         
+def test_dynamic_if_5():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+if identity(True):
+        x=identity(1)
+        return {"i": x}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"i": Right(1)}
+
+
 def test_dynamic_for_10():
     for i in range(20):
         logger.info(f"test start {i} ***************************************")

@@ -3,6 +3,7 @@ from multiprocessing import Manager, Queue
 from uuid import uuid1
 import logging
 from tx.functional.either import Left, Right
+from tx.functional.maybe import Just, Nothing
 from tx.readable_log import format_message, getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -106,6 +107,7 @@ class NodeMap:
             if not is_hold and len(node.depends_on) == 0:
                 self.ready_queue.put((node, {}, {}))
 
+    # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id, ret, result):
         with self.lock:
             logger.info(f"complete_node: node_id = {node_id}, ret = {ret}, result = {result}")
@@ -118,14 +120,16 @@ class NodeMap:
             for ref in subnode_refs:
                 refmeta = self.meta[ref]
                 refmeta.subnode_depends.remove(node_id)
-                refmeta.subnode_results[node_id] = result
+                if result is not Nothing:
+                    refmeta.subnode_results[node_id] = result.value
                 self.meta[ref] = refmeta
                 logger.info(f"complete_node: subnode ref = {ref}, refdep = {refmeta.subnode_depends}, refresults = {refmeta.subnode_results}")
                     
             for ref in refs:
                 refmeta = self.meta[ref]
                 refmeta.depends.remove(node_id)
-                refmeta.results[node_id] = result
+                if result is not Nothing:
+                    refmeta.results[node_id] = result.value
                 self.meta[ref] = refmeta
                 logger.info(f"complete_node: ref = {ref}, refdep = {refmeta.depends}, refresults = {refmeta.results}")
 
@@ -160,10 +164,10 @@ class DependentQueue:
 
     def get(self, *args, **kwargs):
         node, results, subnode_results = self.node_map.get_next_ready_node(*args, **kwargs)
-        logger.info(f"DependentQueue.get: node = {node}, results = {results}")
+        logger.info(f"DependentQueue.get: node = {node}, results = {results}, subnode_results = {subnode_results}")
         return node.get(), results, subnode_results, node.node_id
         
-    def complete(self, node_id, ret, x=None):
+    def complete(self, node_id, ret, x=Nothing):
         self.node_map.complete_node(node_id, ret, x)
         if self.node_map.empty():
             self.node_map.close()
@@ -186,7 +190,7 @@ class SubQueue:
     def get(self, *args, **kwargs):
         return self.subqueue.get(*args, **kwargs)
 
-    def complete(self, node_id, ret, x=None):
+    def complete(self, node_id, ret, x=Nothing):
         self.queue.complete(node_id, ret, x)
 
     def full(self):

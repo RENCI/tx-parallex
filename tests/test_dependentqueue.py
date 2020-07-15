@@ -1,6 +1,7 @@
 from multiprocessing import Manager
 from queue import Queue, Empty
 import pytest
+from tx.functional.maybe import Just
 from tx.parallex.dependentqueue import DependentQueue, Node
 
 
@@ -15,15 +16,15 @@ def test_dep():
         n, r, sr, f1 = dq.get(block=False)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, 6)
+        dq.complete(f1, {}, Just(6))
         n, r, sr, f2 = dq.get(block=False)
         assert n == 2
         assert r == {f1: 6}
-        dq.complete(f2, {}, 5)
+        dq.complete(f2, {}, Just(5))
         n, r, sr, f = dq.get(block=False)
         assert n == 1
         assert r == {f2: 5, f1: 6}
-        dq.complete(f, {}, 4)
+        dq.complete(f, {}, Just(4))
         n, r, sr, f = dq.get(block=False)
         assert n is None
         with pytest.raises(Empty):
