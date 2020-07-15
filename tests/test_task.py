@@ -523,6 +523,20 @@ for j in c:
         assert isinstance(ret["0.x"], Left)
 
 
+def test_circ_dep():
+    print("test_start")
+    with pytest.raises(RuntimeError) as excinfo:
+        with Manager() as manager:
+            py = """
+c = tests.test_task.identity(d)
+d = tests.test_task.identity(c)"""
+
+            data = {}
+        
+            ret = start_python(3, py, data)
+        assert str(excinfo.value) == "RuntimeError: unresolved dependencies or cycle in depedencies graph visited = set()"
+
+
 def test_dynamic_if():
     print("test_start")
     with Manager() as manager:

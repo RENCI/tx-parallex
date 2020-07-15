@@ -422,7 +422,7 @@ def sort_tasks(dep_set, subs):
             dep = f"visited = {visited}\n"
             for task in copy:
                 dep += f"task = {task}\n"
-                dep += f"depends_on = {get_task_depends_on(task)}\n"
+                dep += f"depends_on = {get_task_depends_on(dep_set2, task)}\n"
             raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
 
     logger.info(f"sort_tasks: after: {subs_sorted}")
