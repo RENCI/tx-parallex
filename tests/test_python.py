@@ -39,7 +39,7 @@ a = mod1.mod2.func(param=var)"""
             "func": "func",
             "params": {
                 "param": {
-                    "depends_on": "var"
+                    "name": "var"
                 }
             }
         }]       
@@ -66,14 +66,14 @@ return {'ret1': a}"""
             "func": "func",
             "params": {
                 "param": {
-                    "depends_on": "var"
+                    "name": "var"
                 }
             }
         }, {
             "type": "ret",
             "var": "ret1",
             "obj": {
-                "depends_on": "a"
+                "name": "a"
             }
         }]
     }
@@ -281,7 +281,7 @@ for i in c:
                 "func": "func2",
                 "params": {
                     "u": {
-                        "depends_on": "y"
+                        "name": "y"
                     }
                 }
             }
@@ -335,7 +335,7 @@ for j in c:
                 "type": "map",
                 "var": "j",
                 "coll": {
-                    "depends_on": "c"
+                    "name": "c"
                 },
                 "sub": {
                     "type": "top",
@@ -356,7 +356,7 @@ for j in c:
                         "type": "ret",
                         "var": "x",
                         "obj": {
-                            "depends_on": "a"
+                            "name": "a"
                         }
                     }]
                 }
@@ -473,7 +473,7 @@ else:
         }, {
             "type": "cond",
             "on": {
-                "depends_on": "z"
+                "name": "z"
             },
             "then": {
                 "type": "ret",
@@ -518,7 +518,7 @@ else:
         }, {
             "type": "cond",
             "on": {
-                "depends_on": "z"
+                "name": "z"
             },
             "then": {
                 "type": "ret",
@@ -921,5 +921,41 @@ a = allx([True])
 """
     with pytest.raises(KeyError):
         spec = python_to_spec(py)
+
+
+def test_python_to_spec25():
+    py = """
+c = tests.test_task.identity([0])
+for j in c:
+    return {"x": j}"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "c",
+            "mod": "tests.test_task",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": [0]
+                }
+            }
+        }, {
+            "type": "map",
+            "coll": {
+                "name": "c"
+            },
+            "var": "j",
+            "sub": {
+                "type": "ret",
+                "var": "x",
+                "obj": {
+                    "name": "j"
+                }
+            }
+        }]
+    }
 
 

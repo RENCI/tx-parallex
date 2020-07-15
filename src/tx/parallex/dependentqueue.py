@@ -83,7 +83,7 @@ class NodeMap:
 
     def close(self):
         with self.lock:
-            self.ready_queue.put((Node(self.end_of_queue), {}))
+            self.ready_queue.put((Node(self.end_of_queue), {}, {}))
 
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
@@ -104,16 +104,16 @@ class NodeMap:
                 meta.subnode_refs.add(node.node_id)
                 self.meta[node_id] = meta
             if not is_hold and len(node.depends_on) == 0:
-                self.ready_queue.put((node, {}))
+                self.ready_queue.put((node, {}, {}))
 
     def complete_node(self, node_id, ret, result):
         with self.lock:
-            logger.info(f"complete_node: {node_id} complete, ret = {ret}")
+            logger.info(f"complete_node: node_id = {node_id}, ret = {ret}, result = {result}")
             node = self.nodes[node_id]
             meta = self.meta[node_id]
             refs = meta.refs
             subnode_refs = meta.subnode_refs
-            logger.info(f"complete_node: refs = {refs}")
+            logger.info(f"complete_node: refs = {refs} subnode_refs = {subnode_refs}")
 
             for ref in subnode_refs:
                 refmeta = self.meta[ref]
@@ -129,10 +129,12 @@ class NodeMap:
                 self.meta[ref] = refmeta
                 logger.info(f"complete_node: ref = {ref}, refdep = {refmeta.depends}, refresults = {refmeta.results}")
 
-                if len(refmeta.depends) == 0:
-                    task = (self.nodes[ref], refmeta.results)
-                    logger.info(f"complete_node: ref = {ref}, len(refdep) == 0, task = {task}")
+            for ref in subnode_refs | refs:
+                refmeta = self.meta[ref]
+                if len(refmeta.depends) == 0 and len(refmeta.subnode_depends) == 0:
+                    task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     self.ready_queue.put(task)
+
             logger.info(f"complete_node: updating outputs with {ret}")
             self.outputs.update(ret)
             del self.meta[node_id]
@@ -157,9 +159,9 @@ class DependentQueue:
         return node.node_id
 
     def get(self, *args, **kwargs):
-        node, results = self.node_map.get_next_ready_node(*args, **kwargs)
+        node, results, subnode_results = self.node_map.get_next_ready_node(*args, **kwargs)
         logger.info(f"DependentQueue.get: node = {node}, results = {results}")
-        return node.get(), results, node.node_id
+        return node.get(), results, subnode_results, node.node_id
         
     def complete(self, node_id, ret, x=None):
         self.node_map.complete_node(node_id, ret, x)

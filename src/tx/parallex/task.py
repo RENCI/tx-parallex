@@ -16,6 +16,7 @@ from copy import deepcopy
 from ctypes import c_int
 import builtins
 from tx.functional.either import Left, Right, Either
+from tx.functional.maybe import Just, Nothing, maybe
 from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
 from .python import python_to_spec, EnvStack2
@@ -39,9 +40,9 @@ class AbsTask:
 
 
 class BaseTask(AbsTask):
-    def run(self, results, queue):
+    def run(self, results, subnode_results, queue):
         logger.info(f"BaseTask.run: restuls = {results}")
-        return mbind(self.baseRun, results, queue)
+        return mbind(self.baseRun, results, subnode_results, queue)
     
 # task_counter = Value(c_int, 0)
 
@@ -74,7 +75,7 @@ class Task(BaseTask):
     __repr__ = autorepr(["task_id", "name", "mod", "func", "args_spec", "kwargs_spec", "args", "kwargs"])
     __str__, __unicode__ = autotext("Task({self.task_id} {self.name} {self.mod}.{self.func} {self.args_spec} {self.kwargs_spec} {self.args} {self.kwargs})")
 
-    def baseRun(self, results, queue):
+    def baseRun(self, results, subnode_results, queue):
         mod = import_module(self.mod) if self.mod != "" else builtins
         func = getattr(mod, self.func)
         args = substitute_list(results, self.args_spec)
@@ -99,7 +100,7 @@ class DynamicMap(BaseTask):
     __repr__ = autorepr(["task_id", "var", "coll_spec", "spec", "data", "subnode_top", "ret_prefix"])
     __str__, __unicode__ = autotext("DynamicMap({self.task_id} {self.var} {self.coll_spec} {self.spec} {self.data} {self.subnode_top} {self.ret_prefix})")
 
-    def baseRun(self, results, queue):
+    def baseRun(self, results, subnode_results, queue):
         hold_id = queue.put(Hold(), is_hold=True)
         logger.info(f"DynamicMap.baseRun: put hold task on queue {hold_id}")
         enqueue({
@@ -109,7 +110,7 @@ class DynamicMap(BaseTask):
                 "data": results[self.coll_spec]
             },
             "sub": self.spec
-        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
+        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, Right(None))
         logger.info(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
         return {}, None
@@ -128,7 +129,7 @@ class DynamicGuard(BaseTask):
     __repr__ = autorepr(["task_id", "cond_spec", "then_spec", "else_spec", "data", "subnode_top", "ret_prefix"])
     __str__, __unicode__ = autotext("DynamicCond({self.task_id} {self.cond_spec} {self.then_spec} {self.else_spec} {self.data} {self.subnode_top} {self.ret_prefix})")
 
-    def baseRun(self, results, queue):
+    def baseRun(self, results, subnode_results, queue):
         logger.info(f"DynamicCond.baseRun: before hold")
         hold_id = queue.put(Hold(), is_hold=True)
         logger.info(f"DynamicCond.baseRun: put hold task on queue {hold_id}")
@@ -139,7 +140,7 @@ class DynamicGuard(BaseTask):
             },
             "then": self.then_spec,
             "else": self.else_spec
-        }, self.data, queue, top=EnvStack(self.subnode_top), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
+        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, None)
         logger.info(f"DynamicCond.baseRun: remove hold task from queue {hold_id}")
         return {}, None
@@ -155,7 +156,7 @@ class DynamicRet(AbsTask):
     __repr__ = autorepr(["task_id", "var", "obj_spec", "ret_prefix"])
     __str__, __unicode__ = autotext("DynamicRet(task_id={self.task_id} var={self.var} obj_spec={self.obj_spec} ret_prefix={self.ret_prefix})")
 
-    def run(self, results, queue):
+    def run(self, results, subnode_results, queue):
         return {".".join(chain(map(str, self.ret_prefix), [self.var])): results[self.obj_spec]}, None
 
         
@@ -169,8 +170,8 @@ class Ret(AbsTask):
     __repr__ = autorepr(["task_id", "var", "obj", "ret_prefix"])
     __str__, __unicode__ = autotext("Ret({self.task_id} {self.var} {self.obj} {self.ret_prefix})")
 
-    def run(self, results, queue):
-        return {".".join(self.ret_prefix + [self.var]): Right(self.obj)}, None
+    def run(self, results, subnode_results, queue):
+        return {".".join(map(str, self.ret_prefix + [self.var])): Right(self.obj)}, None
 
         
 class EndOfQueue(AbsTask):
@@ -182,8 +183,8 @@ def dispatch(job_queue, worker_queues):
     n = len(worker_queues)
     while True:
         jri = job_queue.get()
-        job, results, jid = jri
-        logger.info(f"dispatching {type(job)} {jid}")
+        job, results, subnode_results, jid = jri
+        logger.info(f"dispatching type(job) = {type(job)} results = {results} subnode_results = {subnode_results} jid = {jid}")
         if isinstance(job, EndOfQueue):
             for p in worker_queues:
                 p.put_in_subqueue(jri)
@@ -201,29 +202,36 @@ def dispatch(job_queue, worker_queues):
                 worker_queues[base].put_in_subqueue(jri)
 
     
-def mbind(job_run, params, sub_queue):
+def mbind(job_run, params, subnode_results, sub_queue):
     resultv = {}
-    error = False
+    subnode_resultv = {}
     for k, v in params.items():
         if isinstance(v, Left):
             resultj = v
             ret = {}
-            error = True
             break
         else:
             resultv[k] = v.value
-    if not error:
-        # logger.info(f"mbind: running {job_run}")
-        ret, resultj = job_run(resultv, sub_queue)
-        if not isinstance(resultj, Either):
-            resultj = Right(resultj)
+    else:
+        for k, v in subnode_results.items():
+            if isinstance(v, Left):
+                resultj = v
+                ret = {}
+                break
+            else:
+                subnode_resultv[k] = v.value
+        else:
+            # logger.info(f"mbind: running {job_run}")
+            ret, resultj = job_run(resultv, subnode_resultv, sub_queue)
+            if not isinstance(resultj, Either):
+                resultj = Right(resultj)
     return ret, resultj
 
                         
 def work_on(sub_queue):
     while True:
         jri = sub_queue.get()
-        job, results, jid = jri
+        job, results, subnode_results, jid = jri
         if isinstance(job, EndOfQueue):
             break
         else:
@@ -234,7 +242,7 @@ def work_on(sub_queue):
             # }))
             logger.info(f"task begin {type(job)} {jid}")
             try:
-                ret, resultj = job.run(results, sub_queue)
+                ret, resultj = job.run(results, subnode_results, sub_queue)
             except Exception as e:
                 resultj = Left((str(e), traceback.format_exc()))
                 ret = {}
@@ -249,9 +257,17 @@ def work_on(sub_queue):
             sub_queue.complete(jid, ret, resultj)
     
 
-def get_python_task_depends_on(sub):
+def depends_on(top, v):
+    return Just(v["name"]) if "name" in v and v["name"] in top else Nothing
+
+
+def maybe_to_list(x):
+    return x.rec(lambda y: [y], [])
+
+    
+def get_python_task_depends_on(top, sub):
     if sub["type"] == "python":
-        return {k: v["depends_on"] for k, v in sub.get("params", {}).items() if "depends_on" in v}
+        return {k: name for k, v in sub.get("params", {}).items() for name in maybe_to_list(depends_on(top, v))}
     else:
         raise RuntimeError(f"get_task_depends_on: unsupported task {sub}")
 
@@ -260,39 +276,33 @@ def get_dep_set(subs):
     return {v["name"] for v in subs if v["type"] == "python"}
 
     
-def get_task_depends_on(sub):
+def get_task_depends_on(top, sub):
     if sub["type"] == "python":
-        return {v["depends_on"] for _, v in sub.get("params", {}).items() if "depends_on" in v}
+        return {name for _, v in sub.get("params", {}).items() for name in maybe_to_list(depends_on(top, v))}
     elif sub["type"] == "map":
-        dependencies = get_task_depends_on(sub["sub"])
-        if "depends_on" in sub["coll"]:
-            dependencies.add(sub["coll"]["depends_on"])
-        return dependencies
+        dependencies = get_task_depends_on(top, sub["sub"])
+        return dependencies | depends_on(top, sub["coll"]).rec(lambda name: {name}, set())
     elif sub["type"] == "cond":
-        dependencies = get_task_depends_on(sub["then"])
-        dependencies |= get_task_depends_on(sub["else"])
-        if "depends_on" in sub["on"]:
-            dependencies.add(sub["on"]["depends_on"])
-        return dependencies
+        dependencies = get_task_depends_on(top, sub["then"])
+        dependencies |= get_task_depends_on(top, sub["else"])
+        return dependencies | depends_on(top, sub["on"]).rec(lambda name: {name}, set())
     elif sub["type"] == "let":
-        return get_task_depends_on(sub["sub"])
+        return get_task_depends_on(top, sub["sub"])
     elif sub["type"] == "top":
         dep_set = get_dep_set(sub["sub"])
         if len(sub["sub"]) == 0:
             return set()
         else:
-            return set.union(*map(get_task_depends_on, sub["sub"])) - dep_set
+            return set.union(*map(partial(get_task_depends_on, top), sub["sub"])) - dep_set
     elif sub["type"] == "ret":
-        dependencies = set()
-        if "depends_on" in sub["obj"]:
-            dependencies.add(sub["obj"]["depends_on"])
-        return dependencies
+        return depends_on(top, sub["obj"]).rec(lambda name: {name}, set())
     else:
         raise RuntimeError(f"get_task_depends_on: unsupported task {sub}")
 
     
-def get_task_non_dependency_params(spec):
-    return {k: v for k, v in spec.get("params", {}).items() if "depends_on" not in v}
+def get_task_non_dependency_params(top, spec):
+    logger.info(f"top = {top}, spec = {spec}")
+    return {k: v for k, v in spec.get("params", {}).items() if depends_on(top, v) is Nothing}
 
 
 no_op = {
@@ -364,16 +374,13 @@ def generate_dependency_graph(graph, node_map, dep_set, return_ids, sub, parent_
 
     if sub["type"] == "python":
         for p in sub["params"].values():
-            if "depends_on" in p:
-                graph.add_edge(node_map[p["depends_on"]], node_id)
+            depends_on(dep_set, p).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         node_map[sub["name"]] = node_id
     elif sub["type"] == "map":
-        if "depends_on" in sub["coll"]:
-            graph.add_edge(node_map[sub["coll"]["depends_on"]], node_id)
+        depends_on(dep_set, sub["coll"]).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["sub"], node_id)
     elif sub["type"] == "cond":
-        if "depends_on" in sub["on"]:
-            graph.add_edge(node_map[sub["on"]["depends_on"]], node_id)
+        depends_on(dep_set, sub["on"]).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["then"], node_id)
         generate_dependency_graph(graph, node_map, dep_set, return_ids, sub["else"], node_id)
     elif sub["type"] == "let":
@@ -384,23 +391,24 @@ def generate_dependency_graph(graph, node_map, dep_set, return_ids, sub, parent_
         for task in sort_tasks(dep_set, subs):
             generate_dependency_graph(graph, node_map, dep_set_sub, return_ids, task, node_id)
     elif sub["type"] == "ret":
-        if "depends_on" in sub["obj"]:
-            graph.add_edge(node_map[sub["obj"]["depends_on"]], node_id)
+        depends_on(dep_set, sub["obj"]).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         return_ids.append(node_id)
     else:
         raise RuntimeError(f"generate_dependency_graph: unsupported task {sub}")
     
 
 def sort_tasks(dep_set, subs):
+    logger.info(f"sort_tasks: before: {subs}, dep_set = {dep_set}")
     copy = list(subs)
     subs_sorted = []
     visited = set(dep_set)
+    dep_set2 = set(dep_set) | {name for sub in subs for name in maybe_to_list(maybe.from_python(sub.get("name")))}
     while len(copy) > 0:
         copy2 = []
         updated = False
         for sub in copy:
             name = sub.get("name")
-            depends_on = get_task_depends_on(sub)
+            depends_on = get_task_depends_on(dep_set2, sub)
             if len(depends_on - visited) == 0:
                 if name is not None:
                     visited.add(name)
@@ -417,6 +425,7 @@ def sort_tasks(dep_set, subs):
                 dep += f"depends_on = {get_task_depends_on(task)}\n"
             raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
 
+    logger.info(f"sort_tasks: after: {subs_sorted}")
     return subs_sorted
 
 
@@ -449,15 +458,15 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         coll_name = spec["coll"]
         var = spec["var"]
         subspec = spec["sub"]
-        if "depends_on" in coll_name:
+        if "name" in coll_name and coll_name["name"] in top:
             # dynamic task
-            coll_spec = top[coll_name["depends_on"]]
-            subnode_dep = get_task_depends_on(subspec)
+            coll_spec = top[coll_name["name"]]
+            subnode_dep = get_task_depends_on(top, subspec)
             subnode_top = {name: top[name] for name in subnode_dep}
             task = DynamicMap(var, coll_spec, subspec, data, subnode_top, ret_prefix)
             dep = {coll_spec}
 #            logger.info(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
-            yield task, dep | hold, subnode_dep 
+            yield task, dep | hold, set(subnode_top.values())
         else:
             coll = arg_spec_to_arg(data, coll_name)
             yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
@@ -465,14 +474,14 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         cond_name = spec["on"]
         then_spec = spec["then"]
         else_spec = spec["else"]
-        if "depends_on" in cond_name:
-            cond_spec = top[cond_name["depends_on"]]
-            subnode_dep = get_task_depends_on(spec)
+        if "name" in cond_name and cond_name["name"] in top:
+            cond_spec = top[cond_name["name"]]
+            subnode_dep = get_task_depends_on(top, spec)
             subnode_top = {name: top[name] for name in subnode_dep}
             task = DynamicGuard(cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix)
             dep = {cond_spec}
 #            logger.info(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
-            yield task, dep | hold, subnode_dep 
+            yield task, dep | hold, set(subnode_top.values())
         else:
             coll = arg_spec_to_arg(data, cond_name)
             if coll:
@@ -493,9 +502,9 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         if "task_id" in data:
             raise RuntimeError("task_id cannot be used as a field name")
 
-        args0 = {k: arg_spec_to_arg(data, v) for k, v in get_task_non_dependency_params(spec).items()}
+        args0 = {k: arg_spec_to_arg(data, v) for k, v in get_task_non_dependency_params(top, spec).items()}
         args, kwargs = split_args(args0)
-        dependencies = {k: top[v] for k, v in get_python_task_depends_on(spec).items()}
+        dependencies = {k: top[v] for k, v in get_python_task_depends_on(top, spec).items()}
         args_spec, kwargs_spec = split_args(dependencies)
         task = Task(name, mod, func, args_spec, kwargs_spec, *args, **kwargs)
         top[name] = task.task_id
@@ -505,8 +514,8 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
     elif ty == "ret":
         var = spec["var"]
         obj_name = spec["obj"]
-        if "depends_on" in obj_name:
-            obj_spec = top[obj_name["depends_on"]]
+        if "name" in obj_name and obj_name["name"] in top:
+            obj_spec = top[obj_name["name"]]
             task = DynamicRet(var, obj_spec, ret_prefix)
             dep = {obj_spec}
             yield task, dep | hold, set()
@@ -518,6 +527,8 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
 
 
 def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
+    logger.info(f"enqueue: data = {data}")
+
     for what in generate_tasks(spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold):
         job, dependencies, subnode_dependencies = what
         job_id = job.task_id

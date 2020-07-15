@@ -41,18 +41,18 @@ def test_enqueue():
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":1}
         assert r == {}
         dq.complete(f, {}, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":2}
         assert r == {}
         dq.complete(f, {}, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         assert n.kwargs == {"x":3}
         dq.complete(f, {}, 6)
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -69,7 +69,7 @@ def test_enqueue_dependent():
                 "func": "f",
                 "params": {
                     "x": {
-                        "depends_on": "b"
+                        "name": "b"
                     }
                 }
             }, {
@@ -79,7 +79,7 @@ def test_enqueue_dependent():
                 "func": "f",
                 "params": {
                     "x": {
-                        "depends_on": "c"
+                        "name": "c"
                     }
                 }
             }, {
@@ -94,19 +94,19 @@ def test_enqueue_dependent():
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
-        n, r, f1 = dq.get(block=False)
+        n, r, sr, f1 = dq.get(block=False)
         print(n)
         assert r == {}
         dq.complete(f1, {}, 1)
-        n, r, f2 = dq.get(block=False)
+        n, r, sr, f2 = dq.get(block=False)
         print(n)
         assert r == {f1:1}
         dq.complete(f2, {}, 2)
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         print(n)
         assert r == {f2:2}
         dq.complete(f, {}, 3)
-        n, r, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=False)
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -140,7 +140,7 @@ def test_let():
                     "type": "ret",    
                     "var": "x",
                     "obj": {
-                        "depends_on": "a"
+                        "name": "a"
                     }
                 }]
             }
@@ -168,7 +168,7 @@ def test_start():
                 "func": "f",
                 "params": {
                     "x": {
-                        "depends_on": "b"
+                        "name": "b"
                     }
                 }
             }, {
@@ -178,7 +178,7 @@ def test_start():
                 "func": "f",
                 "params": {
                     "x": {
-                        "depends_on": "c"
+                        "name": "c"
                     }
                 }
             }, {
@@ -195,7 +195,7 @@ def test_start():
                 "type": "ret",
                 "var": "x",
                 "obj": {
-                    "depends_on": "a"
+                    "name": "a"
                 }
             }]
         }
@@ -223,7 +223,7 @@ def test_map_start():
                     "func": "f",
                     "params": {
                         "x": {
-                            "depends_on": "b"
+                            "name": "b"
                         }
                     }
                 }, {
@@ -233,7 +233,7 @@ def test_map_start():
                     "func": "f",
                     "params": {
                         "x": {
-                            "depends_on": "c"
+                            "name": "c"
                         }
                     }
                 }, {
@@ -250,7 +250,7 @@ def test_map_start():
                     "type": "ret",
                     "var": "x",
                     "obj": {
-                        "depends_on": "a"
+                        "name": "a"
                     }
                 }]
             }
@@ -340,7 +340,7 @@ def test_dynamic_cond_then_start():
             }, {
                 "type": "cond",
                 "on": {
-                    "depends_on": "z"
+                    "name": "z"
                 },
                 "then": {
                     "type": "ret",
@@ -379,7 +379,7 @@ def test_dynamic_cond_else_start():
             }, {
                 "type": "cond",
                 "on": {
-                    "depends_on": "z"
+                    "name": "z"
                 },
                 "then": {
                     "type": "ret",
@@ -435,7 +435,7 @@ for j in d:
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
-def test_dynamic_for():
+def test_dynamic_for_0():
     print("test_start")
     with Manager() as manager:
         py = """
@@ -451,6 +451,144 @@ for j in c:
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
+def test_dynamic_return():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+c = tests.test_task.identity([0])
+return {"c": c}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"c": Right([0])}
+
+
+def test_dynamic_for_1():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+c = tests.test_task.identity([0])
+for j in c:
+    return {"x": j}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"0.x": Right(0)}
+
+
+def test_dynamic_for_2():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+d = identity(2)
+c = identity([2,3])
+for j in c:
+    return {"x": d+j}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"0.x": Right(4), "1.x": Right(5)}
+
+
+def test_dynamic_type_error():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+d = identity(2)
+c = identity([2,3])
+return {"x": d+c}"""
+        
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert isinstance(ret["x"], Left)
+
+
+def test_dynamic_type_error_2():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+c = tests.test_task.identity([2])
+for j in c:
+    return {"x": 2+c}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert isinstance(ret["0.x"], Left)
+
+
+def test_dynamic_if():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+if identity(True):
+        return {"i": 1}
+else:
+        return {"i": 0}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"i": Right(1)}
+
+        
+def test_dynamic_if_2():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+if identity(False):
+        return {"i": 1}
+else:
+        return {"i": 0}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"i": Right(0)}
+
+        
+def test_dynamic_if_3():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+i = identity(True)
+if i:
+        return {"i": i}
+else:
+        return {"i": i}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"i": Right(True)}
+
+        
+def test_dynamic_if_4():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+from tests.test_task import identity
+i = identity(False)
+if i:
+        return {"i": i}
+else:
+        return {"i": i}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {"i": Right(False)}
+
+        
 def test_dynamic_for_10():
     for i in range(20):
         logger.info(f"test start {i} ***************************************")

@@ -195,16 +195,11 @@ def python_to_top_spec(body, dep_set, imported_names):
 
 EnvStack2 = Stack(set())
 
-def python_ast_to_term(dep_set, iter):
+def python_ast_to_term(iter):
     if isinstance(iter, Name):
-        if iter.id in dep_set:
-            coll_name = {
-                "depends_on": iter.id
-            }
-        else:
-            coll_name = {
-                "name": iter.id
-            }
+        coll_name = {
+            "name": iter.id
+        }
     else:
         coll_name = {
             "data": python_ast_to_value(iter)
@@ -214,7 +209,7 @@ def python_ast_to_term(dep_set, iter):
 
 def python_to_spec_in_top(stmt, dep_set, imported_names):
     if isinstance(stmt, For):
-        coll_name = python_ast_to_term(dep_set, stmt.iter)
+        coll_name = python_ast_to_term(stmt.iter)
         return [{
             "type": "map",
             "var": stmt.target.id,
@@ -222,7 +217,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             "sub": python_to_spec_seq(stmt.body, EnvStack2(dep_set), imported_names)
         }]
     elif isinstance(stmt, If):
-        cond_name = python_ast_to_term(dep_set, stmt.test)
+        cond_name = python_ast_to_term(stmt.test)
         return [{
             "type": "cond",
             "on": cond_name,
@@ -234,7 +229,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
         return [{
             "type": "ret",
             "var": ret_key.value,
-            "obj": python_ast_to_term(dep_set, ret_val)
+            "obj": python_ast_to_term(ret_val)
         } for ret_key, ret_val in zip(ret.keys, ret.values)]
             
     else:
@@ -351,17 +346,14 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             mod = "tx.parallex.data"
             func = "_if_exp"
                 
-        params = {k: python_ast_to_arg(v) for k, v in keywords.items() if not isinstance(v, Name) or v.id not in dep_set}
-        dependencies = {k: {
-            "depends_on": v.id
-        } for k, v in keywords.items() if isinstance(v, Name) and v.id in dep_set}
+        params = {k: python_ast_to_arg(v) for k, v in keywords.items()}
         
         return [{
             "type": "python",
             "name": name,
             "mod": mod,
             "func": func,
-            "params": {**params, **dependencies}
+            "params": params
         }]
 
 
