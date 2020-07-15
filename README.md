@@ -299,7 +299,7 @@ where `<var>` is `name`
 `<expr>` is
 
 ```
-<expr> = <expr> <binop> <expr> | <expr> <boolop> <expr> | <expr> <compare> <expr> | <unaryop> <expr> | <var> | <const>
+<expr> = <expr> if <expr> else <expr> | <expr> <binop> <expr> | <expr> <boolop> <expr> | <expr> <compare> <expr> | <unaryop> <expr> | <var> | <const>
 ```
 
 `<binop>`, `<boolop>` and `<compare>` and `<unaryop>` are python BinOp, BoolOp, Compare, and UnaryOp. `<expr>` is translated to a set of assignments, `name`, or `data` depending on its content.
