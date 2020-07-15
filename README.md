@@ -96,14 +96,9 @@ sub: <subtask>
 
 `<value>` is an object of the form:
 
-Reference an entry in `data`
+Reference an entry in `data` or the name of a task
 ```
 "name": <variable name>
-```
-
-Reference the name of a task
-```
-"depends_on": <task name>
 ```
 
 Constant
@@ -204,7 +199,7 @@ type: top
 sub: <subtasks>
 ```
 
-It reads the `depends_on` properties of subtasks.
+It reads the `name` properties of subtasks that are not in data.
 
 Example:
 ```
@@ -223,7 +218,7 @@ sub:
   func: sqr
   params: 
     x:
-      depends_on: y
+      name: y
 ```
 
 ### `ret`
@@ -254,6 +249,11 @@ obj:
 
 ## Python
 A dsl block contains a subset of Python.
+
+* There is a semantic difference from python. Any assignment in block is not visiable outside of the block.
+* Assignment within a block are unordered
+* return statement
+
 
 Available syntax:
 
@@ -302,7 +302,7 @@ where `<var>` is `name`
 <expr> = <expr> <binop> <expr> | <expr> <boolop> <expr> | <expr> <compare> <expr> | <unaryop> <expr> | <var> | <const>
 ```
 
-`<binop>`, `<boolop>` and `<compare>` and `<unaryop>` are python BinOp, BoolOp, Compare, and UnaryOp. `<expr>` is translated to a set of assignments, `name`, `depends_on`, or `data` depending on its content. It is translated to `depends_on` whenever there is an assignment to it in the code block, even after it.
+`<binop>`, `<boolop>` and `<compare>` and `<unaryop>` are python BinOp, BoolOp, Compare, and UnaryOp. `<expr>` is translated to a set of assignments, `name`, or `data` depending on its content.
 
 Example:
 ```
