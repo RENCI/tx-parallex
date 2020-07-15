@@ -156,7 +156,7 @@ else:
 
 You can use any Python module.
 
-The `python` task runs a Python function. It reads parameters from `data`.
+The `python` task runs a Python function. It reads parameters from `data`. The return value must be pickleable.
 
 Syntax:
 ```
