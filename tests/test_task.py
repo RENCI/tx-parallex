@@ -523,7 +523,7 @@ for j in c:
         assert isinstance(ret["0.x"], Left)
 
 
-def test_circ_dep():
+def test_circular_dependency():
     print("test_start")
     with pytest.raises(RuntimeError) as excinfo:
         with Manager() as manager:
