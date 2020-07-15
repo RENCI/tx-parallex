@@ -1,6 +1,7 @@
 from terminaltables import AsciiTable
 from textwrap import wrap
 import logging
+import os
 
 def getLogger(name, level):
     logger = logging.getLogger(name)
@@ -8,7 +9,7 @@ def getLogger(name, level):
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.setLevel(level)
+    logger.setLevel(os.environ.get("LOG_LEVEL", level))
     return logger
 
 def wrap_line(s):
