@@ -62,7 +62,7 @@ def next_task():
 
 
 class Task(BaseTask):
-    def __init__(self, name, mod, func, args_spec, kwargs_spec, *args, task_id=None, **kwargs):
+    def __init__(self, name, mod, func, args_spec, kwargs_spec, args, kwargs, task_id=None):
         super().__init__(task_id=name + "@" + str(next_task()))
         self.name = name
         self.mod = mod
@@ -78,9 +78,11 @@ class Task(BaseTask):
     def baseRun(self, results, subnode_results, queue):
         mod = import_module(self.mod) if self.mod != "" else builtins
         func = getattr(mod, self.func)
-        args = substitute_list(results, self.args_spec)
+        args = substitute_dict(results, self.args_spec)
         kwargs = substitute_dict(results, self.kwargs_spec)
-        return {}, func(*self.args, *args, **self.kwargs, **kwargs)
+        self_arg_items = self.args.items()
+        arg_items = args.items()
+        return {}, func(*[v for _, v in sorted(chain(self_arg_items, arg_items), key=lambda x: x[0])], **self.kwargs, **kwargs)
 
 
 class Hold(AbsTask):
@@ -431,7 +433,7 @@ def sort_tasks(dep_set, subs):
 
 def split_args(args0):
     kwargs = {k: v for k, v in args0.items() if type(k) == str}
-    args = list(map(lambda x: x[1], sorted({k: v for k, v in args0.items() if type(k) == int}.items(), key = lambda x: x[0])))
+    args = {k: v for k, v in args0.items() if type(k) == int}
     return args, kwargs
 
 def arg_spec_to_arg(data, arg):
@@ -506,7 +508,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         args, kwargs = split_args(args0)
         dependencies = {k: top[v] for k, v in get_python_task_depends_on(top, spec).items()}
         args_spec, kwargs_spec = split_args(dependencies)
-        task = Task(name, mod, func, args_spec, kwargs_spec, *args, **kwargs)
+        task = Task(name, mod, func, args_spec, kwargs_spec, args, kwargs)
         top[name] = task.task_id
 #        logger.info(f"add task: add task to top. top = {top}")
 #        logger.info(f"add task: {task.task_id} depends_on {dependencies}")

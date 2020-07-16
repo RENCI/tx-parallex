@@ -770,3 +770,16 @@ return {"t": t}
 
         ret = start_python(3, py, data)
         assert isinstance(ret["t"], Left)
+
+
+def test_args_order():
+    with Manager() as manager:
+        py = """
+t = tests.test_task.identity(2)
+return {"t": t - 1}
+"""
+        data = {}
+
+        ret = start_python(3, py, data)
+        assert ret == {"t": Right(1)}
+    
