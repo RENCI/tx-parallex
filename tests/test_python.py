@@ -980,3 +980,61 @@ c = [1,2,3][0]
         }
     }
 
+    
+def test_python_to_spec27():
+    py = """
+a,b,c = [1,2,3]
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "_var_0_target",
+        "obj": {
+            "data": [1,2,3]
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "a",
+                "mod": "tx.parallex.data",
+                "func": "_subscript",
+                "params": {
+                    0: {
+                        "name": "_var_0_target"
+                    },
+                    1: {
+                        "data": 0
+                    }
+                }
+            },{
+                "type": "python",
+                "name": "b",
+                "mod": "tx.parallex.data",
+                "func": "_subscript",
+                "params": {
+                    0: {
+                        "name": "_var_0_target"
+                    },
+                    1: {
+                        "data": 1
+                    }
+                }
+            },{
+                "type": "python",
+                "name": "c",
+                "mod": "tx.parallex.data",
+                "func": "_subscript",
+                "params": {
+                    0: {
+                        "name": "_var_0_target"
+                    },
+                    1: {
+                        "data": 2
+                    }
+                }
+            }]
+        }
+    }
+

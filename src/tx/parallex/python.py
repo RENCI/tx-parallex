@@ -7,7 +7,8 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple
+import ast
 import logging
 from importlib import import_module
 import builtins
@@ -72,6 +73,16 @@ def extract_expressions_to_assignments(stmts, counter=[]):
     return list(chain(*(extract_expressions_to_assignments_in_statement(stmt, counter + [i]) for i, stmt in enumerate(stmts))))
 
 
+def extract_assignments_from_destructure(target, value, type_comments, counter):
+    if isinstance(target, Name):
+        return [Assign([target], value, type_comments)]
+    elif isinstance(target, Tuple):
+        name = generate_variable_name(counter)
+        return [Assign([Name(id=name, ctx=Store())], value)] + list(chain(*(extract_assignments_from_destructure(elt, Subscript(value=Name(id=name, ctx=Load()), slice=Index(value=Constant(value=i)), ctx=Load()), None, counter + [i]) for i, elt in enumerate(target.elts))))
+    else:
+        raise RuntimeError(f"unsupported assignment to {target}")
+    
+    
 # assuming that var with name _var[x] is not used
 # todo: check for var name
 def extract_expressions_to_assignments_in_statement(stmt, counter):
@@ -92,8 +103,8 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
         return list(chain(*assigns)) + [stmt_eta]
     else:
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter, in_assignment=True)
-        stmt_eta = Assign(targets=stmt.targets, value=expr, type_comment=stmt.type_comment)
-        return assigns + [stmt_eta]
+        stmt_eta = extract_assignments_from_destructure(stmt.targets[0], expr, stmt.type_comment, counter + ["target"])
+        return assigns + stmt_eta
     
     
 def extract_expressions_to_assignments_in_expression(expr, counter, in_assignment=False):
@@ -197,7 +208,6 @@ def python_to_top_spec(body, dep_set, imported_names):
             "sub": specs
         }
 
-
 EnvStack2 = Stack(set())
 
 def python_ast_to_term(iter):
@@ -239,7 +249,8 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             
     else:
         targets = stmt.targets
-        name = targets[0].id
+        target = targets[0]
+        name = target.id
         app = stmt.value
         if isinstance(app, Call):
             fqfunc = app.func

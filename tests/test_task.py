@@ -729,6 +729,16 @@ return {"t": a}"""
         ret = start_python(3, py, data)
         assert ret == {f"t": Right(1)}
 
+
+def test_destructure():
+    with Manager() as manager:
+        py = """
+a,b,c = [1,2,3]
+return {"t":a+b+c}
+"""
+        data = {}
+        ret = start_python(3, py, data)
+        assert ret == {f"t": Right(6)}
         
 def runtime_error():
     raise RuntimeError()
