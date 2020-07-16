@@ -87,3 +87,6 @@ def _u_sub(a):
 
 def _if_exp(t,b,o):
     return b if t else o
+
+def _subscript(a, b):
+    return a[b]

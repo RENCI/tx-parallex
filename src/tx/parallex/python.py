@@ -7,7 +7,7 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index
 import logging
 from importlib import import_module
 import builtins
@@ -138,6 +138,11 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         orelse, assigns_orelse = extract_expressions_to_assignments_in_expression(expr.orelse, counter + ["orelse"])
         expr_eta = IfExp(test=test, body=body, orelse=orelse)
         assigns = assigns_test + assigns_body + assigns_orelse
+    elif isinstance(expr, Subscript):
+        value, assigns_value = extract_expressions_to_assignments_in_expression(expr.value, counter + ["value"])
+        slice, assigns_slice = extract_expressions_to_assignments_in_expression(expr.slice.value, counter + ["slice.value"])
+        expr_eta = Subscript(value=value, slice=Index(value=slice), ctx=expr.ctx)
+        assigns = assigns_value + assigns_slice
     else:
         return expr, []
     if in_assignment:
@@ -163,7 +168,7 @@ def python_to_spec(py):
     
 
 def is_dynamic(stmt):
-    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp)
+    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp) or isinstance(stmt, Subscript)
 
 
 def python_to_spec_seq(body, dep_set, imported_names = {}):
@@ -345,6 +350,14 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             }
             mod = "tx.parallex.data"
             func = "_if_exp"
+
+        elif isinstance(app, Subscript):
+            keywords = {
+                0: app.value,
+                1: app.slice.value
+            }
+            mod = "tx.parallex.data"
+            func = "_subscript"
                 
         params = {k: python_ast_to_arg(v) for k, v in keywords.items()}
         

@@ -958,4 +958,25 @@ for j in c:
         }]
     }
 
+    
+def test_python_to_spec26():
+    py = """
+c = [1,2,3][0]
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "python",
+        "name": "c",
+        "mod": "tx.parallex.data",
+        "func": "_subscript",
+        "params": {
+            0: {
+                "data": [1,2,3]
+            },
+            1: {
+                "data": 0
+            }
+        }
+    }
 

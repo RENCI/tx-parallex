@@ -717,6 +717,19 @@ return {"t": a}"""
         assert ret == {f"t": Right(1)}
 
         
+def test_subscript():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = [0,1,2][1]
+return {"t": a}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data)
+        assert ret == {f"t": Right(1)}
+
+        
 def runtime_error():
     raise RuntimeError()
 
