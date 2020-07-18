@@ -36,12 +36,12 @@ def substitute_dict(results, kwargs):
 class AbsTask:
     def __init__(self, task_id=None):
         self.task_id = task_id if task_id is not None else str(type(self)) + "@" + str(next_task())
-#        logger.info(f"AbsTask.__init__: self.task_id = {self.task_id}")
+#        logger.debug(f"AbsTask.__init__: self.task_id = {self.task_id}")
 
 
 class BaseTask(AbsTask):
     def run(self, results, subnode_results, queue):
-        logger.info(f"BaseTask.run: restuls = {results}")
+        logger.debug(f"BaseTask.run: restuls = {results}")
         return mbind(self.baseRun, results, subnode_results, queue)
     
 # task_counter = Value(c_int, 0)
@@ -104,7 +104,7 @@ class DynamicMap(BaseTask):
 
     def baseRun(self, results, subnode_results, queue):
         hold_id = queue.put(Hold(), is_hold=True)
-        logger.info(f"DynamicMap.baseRun: put hold task on queue {hold_id}")
+        logger.debug(f"DynamicMap.baseRun: put hold task on queue {hold_id}")
         enqueue({
             "type": "map",
             "var": self.var,
@@ -114,7 +114,7 @@ class DynamicMap(BaseTask):
             "sub": self.spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, Nothing)
-        logger.info(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
+        logger.debug(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
         return {}, None
 
         
@@ -132,9 +132,9 @@ class DynamicGuard(BaseTask):
     __str__, __unicode__ = autotext("DynamicCond({self.task_id} {self.cond_spec} {self.then_spec} {self.else_spec} {self.data} {self.subnode_top} {self.ret_prefix})")
 
     def baseRun(self, results, subnode_results, queue):
-        logger.info(f"DynamicCond.baseRun: before hold")
+        logger.debug(f"DynamicCond.baseRun: before hold")
         hold_id = queue.put(Hold(), is_hold=True)
-        logger.info(f"DynamicCond.baseRun: put hold task on queue {hold_id}")
+        logger.debug(f"DynamicCond.baseRun: put hold task on queue {hold_id}")
         enqueue({
             "type": "cond",
             "on": {
@@ -144,7 +144,7 @@ class DynamicGuard(BaseTask):
             "else": self.else_spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, Nothing)
-        logger.info(f"DynamicCond.baseRun: remove hold task from queue {hold_id}")
+        logger.debug(f"DynamicCond.baseRun: remove hold task from queue {hold_id}")
         return {}, None
     
         
@@ -186,7 +186,7 @@ def dispatch(job_queue, worker_queues):
     while True:
         jri = job_queue.get()
         job, results, subnode_results, jid = jri
-        logger.info(f"dispatching type(job) = {type(job)} results = {results} subnode_results = {subnode_results} jid = {jid}")
+        logger.debug(f"dispatching type(job) = {type(job)} results = {results} subnode_results = {subnode_results} jid = {jid}")
         if isinstance(job, EndOfQueue):
             for p in worker_queues:
                 p.put_in_subqueue(jri)
@@ -223,7 +223,7 @@ def mbind(job_run, params, subnode_results, sub_queue):
             else:
                 subnode_resultv[k] = v.value
         else:
-            # logger.info(f"mbind: running {job_run}")
+            # logger.debug(f"mbind: running {job_run}")
             ret, resultj = job_run(resultv, subnode_resultv, sub_queue)
             if not isinstance(resultj, Either):
                 resultj = Right(resultj)
@@ -237,25 +237,25 @@ def work_on(sub_queue):
         if isinstance(job, EndOfQueue):
             break
         else:
-            # logger.info(format_message("work_on", "task begin.", {
+            # logger.debug(format_message("work_on", "task begin.", {
             #     "job": job,
             #     "jid": jid,
             #     "params": results
             # }))
-            logger.info(f"task begin {type(job)} {jid}")
+            logger.debug(f"task begin {type(job)} {jid}")
             try:
                 ret, resultj = job.run(results, subnode_results, sub_queue)
             except Exception as e:
                 resultj = Left((str(e), traceback.format_exc()))
                 ret = {}
-            # logger.info(format_message("work_on", "task complete.", {
+            # logger.debug(format_message("work_on", "task complete.", {
             #     "job": job,
             #     "jid": jid,
             #     "ret": ret,
             #     "resultj": resultj,
             #     "params": results
             # }))
-            logger.info(f"task finish {type(job)} {jid}")
+            logger.debug(f"task finish {type(job)} {jid}")
             sub_queue.complete(jid, ret, Just(resultj))
     
 
@@ -303,7 +303,7 @@ def get_task_depends_on(top, sub):
 
     
 def get_task_non_dependency_params(top, spec):
-    logger.info(f"top = {top}, spec = {spec}")
+    logger.debug(f"top = {top}, spec = {spec}")
     return {k: v for k, v in spec.get("params", {}).items() if depends_on(top, v) is Nothing}
 
 
@@ -318,9 +318,9 @@ def remove_unreachable_tasks(spec):
 
     def _remove_unreachable_tasks(dg, ret_ids, spec):
     
-        # logger.info(f"remote_unreachable_tasks: spec[\"node_id\"] = {spec['node_id']}")
+        # logger.debug(f"remote_unreachable_tasks: spec[\"node_id\"] = {spec['node_id']}")
         if all(spec["node_id"] != a and not dg.is_connected(spec["node_id"], a) for a in ret_ids):
-            # logger.info(f"remote_unreachable_tasks: {spec['node_id']} is unreachable, replace by noop")
+            # logger.debug(f"remote_unreachable_tasks: {spec['node_id']} is unreachable, replace by noop")
             return no_op
         else:
             if spec["type"] == "python":
@@ -354,9 +354,9 @@ def remove_unreachable_tasks(spec):
 
     spec_original = deepcopy(spec)
     dg, ret_ids = dependency_graph(spec)
-    # logger.info(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
+    # logger.debug(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
     spec_simplified = _remove_unreachable_tasks(dg, ret_ids, spec)
-    # logger.info(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
+    # logger.debug(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
     return spec_simplified
 
 
@@ -400,7 +400,7 @@ def generate_dependency_graph(graph, node_map, dep_set, return_ids, sub, parent_
     
 
 def sort_tasks(dep_set, subs):
-    logger.info(f"sort_tasks: before: {subs}, dep_set = {dep_set}")
+    logger.debug(f"sort_tasks: before: {subs}, dep_set = {dep_set}")
     copy = list(subs)
     subs_sorted = []
     visited = set(dep_set)
@@ -427,7 +427,7 @@ def sort_tasks(dep_set, subs):
                 dep += f"depends_on = {get_task_depends_on(dep_set2, task)}\n"
             raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
 
-    logger.info(f"sort_tasks: after: {subs_sorted}")
+    logger.debug(f"sort_tasks: after: {subs_sorted}")
     return subs_sorted
 
 
@@ -467,7 +467,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
             subnode_top = {name: top[name] for name in subnode_dep}
             task = DynamicMap(var, coll_spec, subspec, data, subnode_top, ret_prefix)
             dep = {coll_spec}
-#            logger.info(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
+#            logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
             yield task, dep | hold, set(subnode_top.values())
         else:
             coll = arg_spec_to_arg(data, coll_name)
@@ -482,7 +482,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
             subnode_top = {name: top[name] for name in subnode_dep}
             task = DynamicGuard(cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix)
             dep = {cond_spec}
-#            logger.info(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
+#            logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
             yield task, dep | hold, set(subnode_top.values())
         else:
             coll = arg_spec_to_arg(data, cond_name)
@@ -497,7 +497,7 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         for sub in subs_sorted:
             yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
     elif ty == "python":
-#        logger.info(f"add task: dependencies = {get_python_task_depends_on(spec)}\ntop = {top}")
+#        logger.debug(f"add task: dependencies = {get_python_task_depends_on(spec)}\ntop = {top}")
         name = spec["name"]
         mod = spec["mod"]
         func = spec["func"]
@@ -510,8 +510,8 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         args_spec, kwargs_spec = split_args(dependencies)
         task = Task(name, mod, func, args_spec, kwargs_spec, args, kwargs)
         top[name] = task.task_id
-#        logger.info(f"add task: add task to top. top = {top}")
-#        logger.info(f"add task: {task.task_id} depends_on {dependencies}")
+#        logger.debug(f"add task: add task to top. top = {top}")
+#        logger.debug(f"add task: {task.task_id} depends_on {dependencies}")
         yield task, set(dependencies.values()) | hold, set()
     elif ty == "ret":
         var = spec["var"]
@@ -529,12 +529,12 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
 
 
 def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
-    logger.info(f"enqueue: data = {data}")
+    logger.debug(f"enqueue: data = {data}")
 
     for what in generate_tasks(spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold):
         job, dependencies, subnode_dependencies = what
         job_id = job.task_id
-        logger.info(f"add task {type(job)} {job_id}\ndepends_on = {dependencies}\nsubnode_depends_on = {subnode_dependencies}")
+        logger.debug(f"add task {type(job)} {job_id}\ndepends_on = {dependencies}\nsubnode_depends_on = {subnode_dependencies}")
         job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
 
 

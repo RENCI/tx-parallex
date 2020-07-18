@@ -122,7 +122,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
             keywords_exprs, assign_lists_keywords = zip(*(extract_expressions_to_assignments_in_expression(kw.value, counter + [kw.arg]) for kw in expr.keywords))
             assigns_keywords = list(chain(*assign_lists_keywords))
             
-#        logger.info(f"expr.args = {expr.args}\nargs = {args}\nassigns = {assigns}\nexpr.keywords = {expr.keywords}\nkeywords_exprs = {keywords_exprs}\nassigns_keywords = {assigns_keywords}")
+#        logger.debug(f"expr.args = {expr.args}\nargs = {args}\nassigns = {assigns}\nexpr.keywords = {expr.keywords}\nkeywords_exprs = {keywords_exprs}\nassigns_keywords = {assigns_keywords}")
 
         expr_eta = Call(func=expr.func, ctx=Load(), args=list(args), keywords=[keyword(arg=kw.arg, value=kw_expr) for kw, kw_expr in zip(expr.keywords, keywords_exprs)])
         assigns = assigns + assigns_keywords
@@ -157,10 +157,10 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
     else:
         return expr, []
     if in_assignment:
-#       logger.info("in assignment")
+#       logger.debug("in assignment")
         return expr_eta, assigns
     else:
-#       logger.info("out of assignment")
+#       logger.debug("out of assignment")
         a = generate_variable_name(counter)
         return Name(id=a, ctx=Load()), assigns + [Assign(targets=[Name(id=a, ctx=Store())], value=expr_eta, type_comment=None)]
             
@@ -186,7 +186,7 @@ def python_to_spec_seq(body, dep_set, imported_names = {}):
     def func(stmts):
         importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
         imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
-        logger.info(f"imported_names2 = {imported_names2}")
+        logger.debug(f"imported_names2 = {imported_names2}")
         apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
@@ -264,7 +264,7 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             else:
                 func = fqfunc.id
                 mod = imported_names[func]
-            # logger.info(f"dep_set = {dep_set}")
+            # logger.debug(f"dep_set = {dep_set}")
         elif isinstance(app, Compare):
             if len(app.ops) > 1:
                 raise RuntimeError("unsupported multi-op compare")

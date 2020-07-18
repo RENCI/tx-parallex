@@ -95,7 +95,7 @@ class NodeMap:
             
             self.nodes[node.node_id] = node
             self.meta[node.node_id] = NodeMetadata(depends=node.depends_on, subnode_depends=node.subnode_depends_on)
-            logger.info(f"add_node: {node.node_id} depends_on {node.depends_on} subnode_depends_on {node.subnode_depends_on}")
+            logger.debug(f"add_node: {node.node_id} depends_on {node.depends_on} subnode_depends_on {node.subnode_depends_on}")
             for node_id in node.depends_on:
                 meta = self.meta.get(node_id, NodeMetadata())
                 meta.refs.add(node.node_id)
@@ -110,12 +110,12 @@ class NodeMap:
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id, ret, result):
         with self.lock:
-            logger.info(f"complete_node: node_id = {node_id}, ret = {ret}, result = {result}")
+            logger.debug(f"complete_node: node_id = {node_id}, ret = {ret}, result = {result}")
             node = self.nodes[node_id]
             meta = self.meta[node_id]
             refs = meta.refs
             subnode_refs = meta.subnode_refs
-            logger.info(f"complete_node: refs = {refs} subnode_refs = {subnode_refs}")
+            logger.debug(f"complete_node: refs = {refs} subnode_refs = {subnode_refs}")
 
             for ref in subnode_refs:
                 refmeta = self.meta[ref]
@@ -123,7 +123,7 @@ class NodeMap:
                 if result is not Nothing:
                     refmeta.subnode_results[node_id] = result.value
                 self.meta[ref] = refmeta
-                logger.info(f"complete_node: subnode ref = {ref}, refdep = {refmeta.subnode_depends}, refresults = {refmeta.subnode_results}")
+                logger.debug(f"complete_node: subnode ref = {ref}, refdep = {refmeta.subnode_depends}, refresults = {refmeta.subnode_results}")
                     
             for ref in refs:
                 refmeta = self.meta[ref]
@@ -131,7 +131,7 @@ class NodeMap:
                 if result is not Nothing:
                     refmeta.results[node_id] = result.value
                 self.meta[ref] = refmeta
-                logger.info(f"complete_node: ref = {ref}, refdep = {refmeta.depends}, refresults = {refmeta.results}")
+                logger.debug(f"complete_node: ref = {ref}, refdep = {refmeta.depends}, refresults = {refmeta.results}")
 
             for ref in subnode_refs | refs:
                 refmeta = self.meta[ref]
@@ -139,13 +139,13 @@ class NodeMap:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     self.ready_queue.put(task)
 
-            logger.info(f"complete_node: updating outputs with {ret}")
+            logger.debug(f"complete_node: updating outputs with {ret}")
             self.outputs.update(ret)
             del self.meta[node_id]
             del self.nodes[node_id]
 
     def get_next_ready_node(self, *args, **kwargs):
-        logger.info(f"NodeMap.get_next_ready_node: self.ready_queue.qsize() = {self.ready_queue.qsize()} len(self.nodes) = {len(self.nodes)}")
+        logger.debug(f"NodeMap.get_next_ready_node: self.ready_queue.qsize() = {self.ready_queue.qsize()} len(self.nodes) = {len(self.nodes)}")
         return self.ready_queue.get(*args, **kwargs)
 
     def empty(self):
@@ -164,7 +164,7 @@ class DependentQueue:
 
     def get(self, *args, **kwargs):
         node, results, subnode_results = self.node_map.get_next_ready_node(*args, **kwargs)
-        logger.info(f"DependentQueue.get: node = {node}, results = {results}, subnode_results = {subnode_results}")
+        logger.debug(f"DependentQueue.get: node = {node}, results = {results}, subnode_results = {subnode_results}")
         return node.get(), results, subnode_results, node.node_id
         
     def complete(self, node_id, ret, x=Nothing):
