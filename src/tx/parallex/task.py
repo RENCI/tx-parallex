@@ -244,6 +244,7 @@ def work_on(sub_queue):
             # }))
             logger.debug(f"task begin {type(job)} {jid}")
             try:
+                logger.info(f"task begin {jid}")
                 ret, resultj = job.run(results, subnode_results, sub_queue)
             except Exception as e:
                 resultj = Left((str(e), traceback.format_exc()))
@@ -256,6 +257,7 @@ def work_on(sub_queue):
             #     "params": results
             # }))
             logger.debug(f"task finish {type(job)} {jid}")
+            logger.info(f"task finish {jid}")
             sub_queue.complete(jid, ret, Just(resultj))
     
 
