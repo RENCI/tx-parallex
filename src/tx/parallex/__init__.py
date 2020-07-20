@@ -10,27 +10,28 @@ import os.path
 with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
     schema = json.load(f)
 
-def run_python(number_of_workers, pyf, dataf):
+def run_python(number_of_workers, pyf, dataf, validate_spec=True):
     with open(pyf) as s:
         py = s.read()
     with open(dataf) as d:
         data = yaml.safe_load(d)
-    return start_python(number_of_workers, py, data)
+    return start_python(number_of_workers, py, data, validate_spec)
 
 
-def run(number_of_workers, specf, dataf):
+def run(number_of_workers, specf, dataf, validate_spec=True):
     with open(specf) as s:
         spec = yaml.safe_load(s)
     with open(dataf) as d:
         data = yaml.safe_load(d)
-    return start(number_of_workers, spec, data)
+    return start(number_of_workers, spec, data, validate_spec)
 
 
-def start_python(number_of_workers, py, data):
-    return start(number_of_workers, python_to_spec(py), data)
+def start_python(number_of_workers, py, data, validate_spec):
+    return start(number_of_workers, python_to_spec(py), data, validate_spec)
 
-def start(number_of_workers, spec, data):
-    validate(instance=spec, schema=schema)
+def start(number_of_workers, spec, data, validate_spec):
+    if validate_spec:
+        validate(instance=spec, schema=schema)
     with Manager() as manager:
         job_queue = DependentQueue(manager, EndOfQueue())
         enqueue(spec, data, job_queue)
