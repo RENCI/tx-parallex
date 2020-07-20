@@ -39,7 +39,7 @@ def python_ast_to_value(expr):
         raise RuntimeError(f"cannot convert ast {expr} to value")
 
     
-def python_ast_to_arg(expr):
+def python_ast_to_term(expr):
     if isinstance(expr, Name):
         return {
             "name": expr.id
@@ -62,7 +62,7 @@ def let_spec(body, func):
             spec_wrapped_by_assign = {
                 "type": "let",
                 "var": assign.targets[0].id,
-                "obj": python_ast_to_arg(assign.value),
+                "obj": python_ast_to_term(assign.value),
                 "sub": spec
             }
             return let_spec_handle_assign(resta, spec_wrapped_by_assign)
@@ -109,26 +109,15 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
     
 def extract_expressions_to_assignments_in_expression(expr, counter, in_assignment=False):
     if isinstance(expr, Call):
-        if len(expr.args) == 0:
-            args = expr.args
-            assigns = []
-        else:
-            args, assign_lists = zip(*(extract_expressions_to_assignments_in_expression(arg, counter + [i]) for i, arg in enumerate(expr.args)))
-            assigns = list(chain(*assign_lists))
-        if len(expr.keywords) == 0:
-            keywords_exprs = expr.keywords
-            assigns_keywords = []
-        else:
-            keywords_exprs, assign_lists_keywords = zip(*(extract_expressions_to_assignments_in_expression(kw.value, counter + [kw.arg]) for kw in expr.keywords))
-            assigns_keywords = list(chain(*assign_lists_keywords))
-            
-#        logger.debug(f"expr.args = {expr.args}\nargs = {args}\nassigns = {assigns}\nexpr.keywords = {expr.keywords}\nkeywords_exprs = {keywords_exprs}\nassigns_keywords = {assigns_keywords}")
-
+        args, assign_lists = extract_expressions_to_assignments_in_expressions(expr.args, counter)
+        assigns = list(chain(*assign_lists))
+        keywords_exprs, assign_lists_keywords = extract_expressions_to_assignments_in_expressions([(kw.arg, kw.value) for kw in expr.keywords], counter, keyword=True)
+        assigns_keywords = list(chain(*assign_lists_keywords))
         expr_eta = Call(func=expr.func, ctx=Load(), args=list(args), keywords=[keyword(arg=kw.arg, value=kw_expr) for kw, kw_expr in zip(expr.keywords, keywords_exprs)])
         assigns = assigns + assigns_keywords
     elif isinstance(expr, Compare):
         left, assigns_left = extract_expressions_to_assignments_in_expression(expr.left, counter + ["left"])
-        comparators, assign_lists = zip(*(extract_expressions_to_assignments_in_expression(comparator, counter + ["comparator", i]) for i, comparator in enumerate(expr.comparators)))
+        comparators, assign_lists = extract_expressions_to_assignments_in_expressions(expr.comparators, counter + ["comparator"])
         expr_eta = Compare(left=left, ops=expr.ops, comparators=list(comparators))
         assigns = assigns_left + list(chain(*assign_lists))
     elif isinstance(expr, BinOp):
@@ -137,7 +126,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         expr_eta = BinOp(left=left, op=expr.op, right=right)
         assigns = assigns_left + assigns_right
     elif isinstance(expr, BoolOp):
-        values, assign_lists = zip(*(extract_expressions_to_assignments_in_expression(value, counter + [i]) for i, value in enumerate(expr.values)))
+        values, assign_lists = extract_expressions_to_assignments_in_expressions(expr.values, counter)
         assigns = list(chain(*assign_lists))
         expr_eta = BoolOp(op=expr.op, values=list(values))
     elif isinstance(expr, UnaryOp):
@@ -154,16 +143,57 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         slice, assigns_slice = extract_expressions_to_assignments_in_expression(expr.slice.value, counter + ["slice.value"])
         expr_eta = Subscript(value=value, slice=Index(value=slice), ctx=expr.ctx)
         assigns = assigns_value + assigns_slice
+    elif isinstance(expr, List):
+        exprs, assign_lists = extract_expressions_to_assignments_in_expressions(expr.elts, counter)
+        assigns = list(chain(*assign_lists))
+        if not is_dynamic_args(exprs) and len(assigns) == 0:
+            return expr, []
+        else:
+            expr_eta = List(elts=list(exprs), ctx=expr.ctx)
+    elif isinstance(expr, Tuple):
+        exprs, assign_lists = extract_expressions_to_assignments_in_expressions(expr.elts, counter)
+        assigns = list(chain(*assign_lists))
+        if not is_dynamic_args(exprs) and len(assigns) == 0:
+            return expr, []
+        else:
+            expr_eta = Tuple(elts=list(exprs), ctx=expr.ctx)
+    elif isinstance(expr, Dict):
+        exprs_keys, assign_keys = extract_expressions_to_assignments_in_expressions(expr.keys, counter + ["keys"])
+        exprs_values, assign_values = extract_expressions_to_assignments_in_expressions(expr.values, counter + ["values"])
+        assigns = list(chain(*assign_keys, *assign_values))
+        if not is_dynamic_args(exprs_keys) and not is_dynamic_args(exprs_values) and len(assigns) == 0:
+            return expr, []
+        else:
+            expr_eta = Dict(keys=list(exprs_keys), values=list(exprs_values))
     else:
         return expr, []
+
+    logger.info(f"{ast.dump(expr_eta)} {[ast.dump(assign) for assign in assigns]}")
     if in_assignment:
 #       logger.debug("in assignment")
         return expr_eta, assigns
     else:
 #       logger.debug("out of assignment")
-        a = generate_variable_name(counter)
-        return Name(id=a, ctx=Load()), assigns + [Assign(targets=[Name(id=a, ctx=Store())], value=expr_eta, type_comment=None)]
+        expr, assign = generate_expression_and_assignment(expr_eta, counter)
+        return expr, assigns + [assign]
             
+
+def extract_expressions_to_assignments_in_expressions(exprs, counter, in_assignment=False, keyword=False):
+    if len(exprs) == 0:
+            return exprs, []
+    else:
+        if keyword:
+            return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in exprs))
+        else:
+            return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in enumerate(exprs)))
+    
+    
+def is_dynamic_args(exprs):
+    return any(isinstance(expr, Name) for expr in exprs)
+
+def generate_expression_and_assignment(expr_eta, counter):
+    a = generate_variable_name(counter)
+    return Name(id=a, ctx=Load()), Assign(targets=[Name(id=a, ctx=Store())], value=expr_eta, type_comment=None)
 
 def generate_variable_name(counter):
     return f"_var_{'_'.join(map(str, counter))}"
@@ -175,14 +205,14 @@ def python_to_spec(py):
 
     body_eta = extract_expressions_to_assignments(body)
     
-    return python_to_spec_seq(body_eta, EnvStack2())
+    return python_to_spec_seq(body_eta)
     
 
 def is_dynamic(stmt):
-    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp) or isinstance(stmt, Subscript)
+    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp) or isinstance(stmt, Subscript) or (isinstance(stmt, List) and is_dynamic_args(stmt.elts)) or (isinstance(stmt, Tuple) and is_dynamic_args(stmt.elts)) or (isinstance(stmt, Dict) and (is_dynamic_args(stmt.keys) or is_dynamic_args(stmt.values)))
 
 
-def python_to_spec_seq(body, dep_set, imported_names = {}):
+def python_to_spec_seq(body, imported_names = {}):
     def func(stmts):
         importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
         imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
@@ -191,15 +221,14 @@ def python_to_spec_seq(body, dep_set, imported_names = {}):
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
         returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
-        dep_set2 = dep_set | {app.targets[0].id for app in apps}
     
-        return python_to_top_spec(apps + fors + ifs + returns, dep_set2, imported_names2)
+        return python_to_top_spec(apps + fors + ifs + returns, imported_names2)
     
     return let_spec(body, func)
 
 
-def python_to_top_spec(body, dep_set, imported_names):
-    specs = list(chain.from_iterable(python_to_spec_in_top(stmt, dep_set, imported_names) for stmt in body))
+def python_to_top_spec(body, imported_names):
+    specs = list(chain.from_iterable(python_to_spec_in_top(stmt, imported_names) for stmt in body))
     if len(specs) == 1:
         return specs[0]
     else:
@@ -210,34 +239,22 @@ def python_to_top_spec(body, dep_set, imported_names):
 
 EnvStack2 = Stack(set())
 
-def python_ast_to_term(iter):
-    if isinstance(iter, Name):
-        coll_name = {
-            "name": iter.id
-        }
-    else:
-        coll_name = {
-            "data": python_ast_to_value(iter)
-        }
-    return coll_name
-
-
-def python_to_spec_in_top(stmt, dep_set, imported_names):
+def python_to_spec_in_top(stmt, imported_names):
     if isinstance(stmt, For):
         coll_name = python_ast_to_term(stmt.iter)
         return [{
             "type": "map",
             "var": stmt.target.id,
             "coll": coll_name,
-            "sub": python_to_spec_seq(stmt.body, EnvStack2(dep_set), imported_names)
+            "sub": python_to_spec_seq(stmt.body, imported_names)
         }]
     elif isinstance(stmt, If):
         cond_name = python_ast_to_term(stmt.test)
         return [{
             "type": "cond",
             "on": cond_name,
-            "then": python_to_spec_seq(stmt.body, EnvStack2(dep_set), imported_names),
-            "else": python_to_spec_seq(stmt.orelse, EnvStack2(dep_set), imported_names),
+            "then": python_to_spec_seq(stmt.body, imported_names),
+            "else": python_to_spec_seq(stmt.orelse, imported_names),
         }]
     elif isinstance(stmt, Return):
         ret = stmt.value
@@ -370,7 +387,22 @@ def python_to_spec_in_top(stmt, dep_set, imported_names):
             mod = "tx.parallex.data"
             func = "_subscript"
                 
-        params = {k: python_ast_to_arg(v) for k, v in keywords.items()}
+        elif isinstance(app, List):
+            keywords = {i: elt for i, elt in enumerate(app.elts)}
+            mod = "tx.parallex.data"
+            func = "_list"
+                
+        elif isinstance(app, Tuple):
+            keywords = {i: elt for i, elt in enumerate(app.elts)}
+            mod = "tx.parallex.data"
+            func = "_tuple"
+                
+        elif isinstance(app, Dict):
+            keywords = {i: elt for i, elt in enumerate(app.keys + app.values)}
+            mod = "tx.parallex.data"
+            func = "_dict"
+                
+        params = {k: python_ast_to_term(v) for k, v in keywords.items()}
         
         return [{
             "type": "python",

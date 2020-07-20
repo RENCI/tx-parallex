@@ -1038,3 +1038,280 @@ a,b,c = [1,2,3]
         }
     }
 
+def test_python_to_spec_dynamic_list():
+    py = """
+a = 1
+b = [a]
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_list",
+            "params": {
+                0: {
+                    "name": "a"
+                }
+            }
+        }
+    }
+
+def test_python_to_spec_dynamic_list_nested():
+    py = """
+a = 1
+b = [[a]]
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "_var_1_0",
+                "mod": "tx.parallex.data",
+                "func": "_list",
+                "params": {
+                    0: {
+                        "name": "a"
+                    }
+                }
+            }, {
+                "type": "python",
+                "name": "b",
+                "mod": "tx.parallex.data",
+                "func": "_list",
+                "params": {
+                    0: {
+                        "name": "_var_1_0",
+                    }
+                }
+            }]
+        }
+    }
+
+def test_python_to_spec_dynamic_tuple():
+    py = """
+a = 1
+b = (a,)
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_tuple",
+            "params": {
+                0: {
+                    "name": "a"
+                }
+            }
+        }
+    }
+
+def test_python_to_spec_dynamic_tuple_nested():
+    py = """
+a = 1
+b = ((a,),)
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "_var_1_0",
+                "mod": "tx.parallex.data",
+                "func": "_tuple",
+                "params": {
+                    0: {
+                        "name": "a"
+                    }
+                }
+            }, {
+                "type": "python",
+                "name": "b",
+                "mod": "tx.parallex.data",
+                "func": "_tuple",
+                "params": {
+                    0: {
+                        "name": "_var_1_0",
+                    }
+                }
+            }]
+        }
+    }
+
+def test_python_to_spec_dynamic_dict():
+    py = """
+a = 1
+b = {"t":a}
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": "t"
+                },
+                1: {
+                    "name": "a"
+                }
+            }
+        }
+    }
+
+def test_python_to_spec_dynamic_dict_key():
+    py = """
+t = "t"
+b = {t:1}
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "t",
+        "obj": {
+            "data": "t"
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "name": "t"
+                },
+                1: {
+                    "data": 1
+                }
+            }
+        }
+    }
+
+def test_python_to_spec_dynamic_dict_nested():
+    py = """
+a = 1
+b = {"s":{"t":a}}
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "_var_1_values_0",
+                "mod": "tx.parallex.data",
+                "func": "_dict",
+                "params": {
+                    0: {
+                        "data": "t"
+                    },
+                    1: {
+                        "name": "a"
+                    }
+                }
+            }, {
+                "type": "python",
+                "name": "b",
+                "mod": "tx.parallex.data",
+                "func": "_dict",
+                "params": {
+                    0: {
+                        "data": "s"
+                    },
+                    1: {
+                        "name": "_var_1_values_0",
+                    }
+                }
+            }]
+        }
+    }
+
+def test_python_to_spec_dynamic_dict_nested_key():
+    py = """
+t = "t"
+b = {"s":{t:1}}
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "t",
+        "obj": {
+            "data": "t"
+        },
+        "sub": {
+            "type": "top",
+            "sub": [{
+                "type": "python",
+                "name": "_var_1_values_0",
+                "mod": "tx.parallex.data",
+                "func": "_dict",
+                "params": {
+                    0: {
+                        "name": "t"
+                    },
+                    1: {
+                        "data": 1
+                    }
+                }
+            }, {
+                "type": "python",
+                "name": "b",
+                "mod": "tx.parallex.data",
+                "func": "_dict",
+                "params": {
+                    0: {
+                        "data": "s"
+                    },
+                    1: {
+                        "name": "_var_1_values_0",
+                    }
+                }
+            }]
+        }
+    }
