@@ -1,3 +1,4 @@
+import sys
 from multiprocessing import Manager, Process
 from tx.parallex.dependentqueue import DependentQueue, SubQueue
 from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue
@@ -34,7 +35,13 @@ def start(number_of_workers, spec, data, system_paths, validate_spec):
         validate(instance=spec, schema=schema)
     with Manager() as manager:
         job_queue = DependentQueue(manager, EndOfQueue())
-        enqueue(spec, data, job_queue)
+        add_paths = list(set(system_paths) - set(sys.path))
+        sys.path.extend(add_paths)
+        try:
+            enqueue(spec, data, job_queue)
+        finally:
+            for _ in range(len(add_paths)):
+                sys.path.pop()
         subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
         processes = []
         for subqueue in subqueues:
@@ -47,5 +54,6 @@ def start(number_of_workers, spec, data, system_paths, validate_spec):
         for p in processes:
             p.join()
         return job_queue.get_results()
+
 
 
