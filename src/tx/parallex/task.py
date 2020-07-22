@@ -232,6 +232,7 @@ def mbind(job_run, params, subnode_results, sub_queue):
 
                         
 def work_on(sub_queue, library_paths):
+    logger.debug(f"library_paths = {library_paths}")
     sys.path.extend(library_paths)
     while True:
         jri = sub_queue.get()
