@@ -1,3 +1,4 @@
+import sys
 from queue import Queue
 from uuid import uuid4
 from random import choice
@@ -230,7 +231,8 @@ def mbind(job_run, params, subnode_results, sub_queue):
     return ret, resultj
 
                         
-def work_on(sub_queue):
+def work_on(sub_queue, library_paths = []):
+    sys.path.extend(library_paths)
     while True:
         jri = sub_queue.get()
         job, results, subnode_results, jid = jri
