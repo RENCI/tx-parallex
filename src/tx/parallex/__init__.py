@@ -7,6 +7,10 @@ import yaml
 import json
 from jsonschema import validate
 import os.path
+from ..readable_log import getLogger
+import logging
+
+logger = getLogger(__name__, logging.INFO)
 
 with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
     schema = json.load(f)
@@ -37,6 +41,7 @@ def start(number_of_workers, spec, data, system_paths, validate_spec):
         job_queue = DependentQueue(manager, EndOfQueue())
         add_paths = list(set(system_paths) - set(sys.path))
         sys.path.extend(add_paths)
+        logger.debug(f"add_paths = {add_paths}")
         try:
             enqueue(spec, data, job_queue)
         finally:
