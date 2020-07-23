@@ -1,6 +1,8 @@
+import sys
 from multiprocessing import Manager
 from queue import Empty
 import pathlib
+import importlib
 import logging
 import pytest
 from tx.parallex import start, start_python
@@ -819,5 +821,32 @@ return {"t": func(1)}
 
         ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
         assert ret == {"t": Right(1)}
+
+
+def test_system_paths_4():
+    with Manager() as manager:
+        py = """
+return {"t": 1}
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        with pytest.raises(Exception) as excinfo:
+            importlib.import_module("cd")
+
+
+def test_system_paths_5():
+    with Manager() as manager:
+        p = str(pathlib.Path(__file__).parent.absolute() / "user")
+        sys.path.append(p)
+        py = """
+return {"t": 1}
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [p], True)
+        importlib.import_module("mod")
+        sys.path.remove(p)
+
 
     
