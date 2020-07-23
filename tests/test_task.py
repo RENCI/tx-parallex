@@ -1,5 +1,6 @@
 from multiprocessing import Manager
 from queue import Empty
+import pathlib
 import logging
 import pytest
 from tx.parallex import start, start_python
@@ -781,6 +782,18 @@ return {"t": t - 1}
         data = {}
 
         ret = start_python(3, py, data, [], True)
+        assert ret == {"t": Right(1)}
+
+
+def test_system_paths():
+    with Manager() as manager:
+        py = """
+t = mod.func(1)
+return {"t": t}
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
         assert ret == {"t": Right(1)}
 
     
