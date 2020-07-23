@@ -32,21 +32,23 @@ def run(number_of_workers, specf, dataf, system_paths=[], validate_spec=True):
 
 
 def start_python(number_of_workers, py, data, system_paths, validate_spec):
-    return start(number_of_workers, python_to_spec(py), data, system_paths, validate_spec)
+    add_paths = list(set(system_paths) - set(sys.path))
+    sys.path.extend(add_paths)
+    logger.debug(f"add_paths = {add_paths}")
+    try:
+        spec = python_to_spec(py)
+    finally:
+        for _ in range(len(add_paths)):
+            sys.path.pop()
+    return start(number_of_workers, spec, data, system_paths, validate_spec)
 
+                
 def start(number_of_workers, spec, data, system_paths, validate_spec):
     if validate_spec:
         validate(instance=spec, schema=schema)
     with Manager() as manager:
         job_queue = DependentQueue(manager, EndOfQueue())
-        add_paths = list(set(system_paths) - set(sys.path))
-        sys.path.extend(add_paths)
-        logger.debug(f"add_paths = {add_paths}")
-        try:
-            enqueue(spec, data, job_queue)
-        finally:
-            for _ in range(len(add_paths)):
-                sys.path.pop()
+        enqueue(spec, data, job_queue)
         subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
         processes = []
         for subqueue in subqueues:

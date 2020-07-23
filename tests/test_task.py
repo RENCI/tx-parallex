@@ -797,3 +797,27 @@ return {"t": t}
         assert ret == {"t": Right(1)}
 
     
+def test_system_paths_2():
+    with Manager() as manager:
+        py = """
+from mod import func
+return {"t": func(1)}
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        assert ret == {"t": Right(1)}
+
+    
+def test_system_paths_3():
+    with Manager() as manager:
+        py = """
+from mod import *
+return {"t": func(1)}
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        assert ret == {"t": Right(1)}
+
+    
