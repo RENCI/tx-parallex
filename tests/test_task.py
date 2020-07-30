@@ -4,6 +4,9 @@ from queue import Empty
 import pathlib
 import importlib
 import logging
+from tempfile import mkstemp
+import shelve
+import os
 import pytest
 from tx.parallex import start, start_python
 from tx.parallex.task import enqueue, EndOfQueue
@@ -150,7 +153,7 @@ def test_let():
             }
         }
         data = {}
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(1)}
 
         
@@ -205,7 +208,7 @@ def test_start():
         }
         data = {"y": 1}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(4)}
 
 
@@ -261,7 +264,7 @@ def test_map_start():
         }
         data = {"z": [1, 2, 3]}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"0.x": Right(4), "1.x": Right(5), "2.x": Right(6)}
 
 
@@ -290,7 +293,7 @@ def test_cond_then_start():
         }
         data = {"z": True}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(1)}
 
 
@@ -319,7 +322,7 @@ def test_cond_else_start():
         }
         data = {"z": False}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(0)}
 
 
@@ -364,7 +367,7 @@ def test_dynamic_cond_then_start():
         }
         data = {"z": True}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(1)}
 
 
@@ -403,7 +406,7 @@ def test_dynamic_cond_else_start():
         }
         data = {"z": False}
         
-        ret = start(3, spec, data, [], True)
+        ret = start(3, spec, data, [], True, None)
         assert ret == {"x": Right(0)}
 
 
@@ -418,7 +421,7 @@ return {"x": a}"""
 
         data = {"y": 1}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"x": Right(4)}
 
 
@@ -435,7 +438,7 @@ for j in d:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
@@ -451,7 +454,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
@@ -464,7 +467,7 @@ return {"c": c}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"c": Right([0])}
 
 
@@ -478,7 +481,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"0.x": Right(0)}
 
 
@@ -494,7 +497,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"0.x": Right(4), "1.x": Right(5)}
 
 
@@ -509,7 +512,7 @@ return {"x": d+c}"""
         
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert isinstance(ret["x"], Left)
 
 
@@ -523,7 +526,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert isinstance(ret["0.x"], Left)
 
 
@@ -537,7 +540,7 @@ d = tests.test_task.identity(c)"""
 
             data = {}
         
-            ret = start_python(3, py, data, [], True)
+            ret = start_python(3, py, data, [], True, None)
         assert str(excinfo.value) == "RuntimeError: unresolved dependencies or cycle in depedencies graph visited = set()"
 
 
@@ -553,7 +556,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"i": Right(1)}
 
         
@@ -569,7 +572,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"i": Right(0)}
 
         
@@ -586,7 +589,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"i": Right(True)}
 
         
@@ -603,7 +606,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"i": Right(False)}
 
         
@@ -618,7 +621,7 @@ if identity(True):
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"i": Right(1)}
 
 
@@ -632,7 +635,7 @@ for j in tests.test_task.identity([1]):
 
             data = {}
         
-            ret = start_python(3, py, data, [], True)
+            ret = start_python(3, py, data, [], True, None)
             assert ret == {"0.x": Right(3)}
 
 
@@ -645,7 +648,7 @@ return {"x": a}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"x": Right(2)}
 
 
@@ -658,7 +661,7 @@ return {"x": a}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"x": Right(2)}
 
 
@@ -672,7 +675,7 @@ return {"x": b}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"x": Right(3)}
 
 
@@ -690,8 +693,22 @@ for s in [1,2,3,4,5,6,7]:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
+
+        
+def test_shared_object_reference_counting():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+s = tx.functional.utils.identity(0.5)
+t = tests.test_task.add(a=s, b=s)
+return {"t": t}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {"t": Right(1)}
 
         
 def test_system_function():
@@ -703,7 +720,7 @@ return {"t": a}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {f"t": Right(True)}
 
         
@@ -716,7 +733,7 @@ return {"t": a}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {f"t": Right(1)}
 
         
@@ -729,7 +746,7 @@ return {"t": a}"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {f"t": Right(1)}
 
 
@@ -740,7 +757,7 @@ a,b,c = [1,2,3]
 return {"t":a+b+c}
 """
         data = {}
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {f"t": Right(6)}
         
 def runtime_error():
@@ -759,7 +776,7 @@ return {"t": t}
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert isinstance(ret["t"], Left)
 
         
@@ -771,7 +788,7 @@ return {"t": t}
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert isinstance(ret["t"], Left)
 
 
@@ -783,7 +800,7 @@ return {"t": t - 1}
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True)
+        ret = start_python(3, py, data, [], True, None)
         assert ret == {"t": Right(1)}
 
 
@@ -795,7 +812,7 @@ return {"t": t}
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
         assert ret == {"t": Right(1)}
 
     
@@ -807,7 +824,7 @@ return {"t": func(1)}
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
         assert ret == {"t": Right(1)}
 
     
@@ -819,7 +836,7 @@ return {"t": func(1)}
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
         assert ret == {"t": Right(1)}
 
 
@@ -830,7 +847,7 @@ return {"t": 1}
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
         with pytest.raises(Exception) as excinfo:
             importlib.import_module("cd")
 
@@ -844,9 +861,72 @@ return {"t": 1}
 """
         data = {}
 
-        ret = start_python(3, py, data, [p], True)
+        ret = start_python(3, py, data, [p], True, None)
         importlib.import_module("mod")
         sys.path.remove(p)
 
 
+def test_output_path():
+    _, temp_path = mkstemp()
+    os.remove(temp_path)
+    try:
+        with Manager() as manager:
+            py = """
+return {"t": 1}
+"""
+            data = {}
+
+            start_python(3, py, data, [], True, temp_path)
+            with shelve.open(temp_path, "r") as db:
+                assert dict(db) == {"t": Right(1)}
+            assert(os.path.isfile(f"{temp_path}.dir"))
+            assert(os.path.isfile(f"{temp_path}.bak"))
+            assert(os.path.isfile(f"{temp_path}.dat"))
+    finally:
+        os.remove(f"{temp_path}.dat")
+        os.remove(f"{temp_path}.dir")
+        os.remove(f"{temp_path}.bak")
     
+
+def test_output_path_2():
+    temp_path = "/tmp/out"
+    try:
+        with Manager() as manager:
+            py = """
+return {"t": 1}
+"""
+            data = {}
+
+            start_python(3, py, data, [], True, temp_path)
+            with shelve.open(temp_path, "r") as db:
+                assert dict(db) == {"t": Right(1)}
+    finally:
+        os.remove(f"{temp_path}.dat")
+        os.remove(f"{temp_path}.dir")
+        os.remove(f"{temp_path}.bak")
+
+
+def test_output_path_3():
+    temp_path = "/tmp/out"
+    try:
+        with Manager() as manager:
+            py = """
+return {"s": 0}
+"""
+            py2 = """
+return {"t": 1}
+"""
+            data = {}
+
+            start_python(3, py, data, [], True, temp_path)
+            with shelve.open(temp_path, "r") as db:
+                assert dict(db) == {"s": Right(0)}
+                
+            start_python(3, py2, data, [], True, temp_path)
+            with shelve.open(temp_path, "r") as db:
+                assert dict(db) == {"t": Right(1)}
+    finally:
+        os.remove(f"{temp_path}.dat")
+        os.remove(f"{temp_path}.dir")
+        os.remove(f"{temp_path}.bak")
+

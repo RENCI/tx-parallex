@@ -22,6 +22,7 @@ from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
 from .python import python_to_spec, EnvStack2
 from .stack import Stack
+import shelve
 from tx.readable_log import format_message, getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -42,7 +43,7 @@ class AbsTask:
 
 class BaseTask(AbsTask):
     def run(self, results, subnode_results, queue):
-        logger.debug(f"BaseTask.run: restuls = {results}")
+        logger.debug("BaseTask.run: restuls = %s", results)
         return mbind(self.baseRun, results, subnode_results, queue)
     
 # task_counter = Value(c_int, 0)
@@ -105,7 +106,7 @@ class DynamicMap(BaseTask):
 
     def baseRun(self, results, subnode_results, queue):
         hold_id = queue.put(Hold(), is_hold=True)
-        logger.debug(f"DynamicMap.baseRun: put hold task on queue {hold_id}")
+        logger.debug("DynamicMap.baseRun: put hold task on queue %s", hold_id)
         enqueue({
             "type": "map",
             "var": self.var,
@@ -115,7 +116,7 @@ class DynamicMap(BaseTask):
             "sub": self.spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, Nothing)
-        logger.debug(f"DynamicMap.baseRun: remove hold task from queue {hold_id}")
+        logger.debug("DynamicMap.baseRun: remove hold task from queue %s", hold_id)
         return {}, None
 
         
@@ -133,9 +134,9 @@ class DynamicGuard(BaseTask):
     __str__, __unicode__ = autotext("DynamicCond({self.task_id} {self.cond_spec} {self.then_spec} {self.else_spec} {self.data} {self.subnode_top} {self.ret_prefix})")
 
     def baseRun(self, results, subnode_results, queue):
-        logger.debug(f"DynamicCond.baseRun: before hold")
+        logger.debug("DynamicCond.baseRun: before hold")
         hold_id = queue.put(Hold(), is_hold=True)
-        logger.debug(f"DynamicCond.baseRun: put hold task on queue {hold_id}")
+        logger.debug("DynamicCond.baseRun: put hold task on queue %s", hold_id)
         enqueue({
             "type": "cond",
             "on": {
@@ -145,7 +146,7 @@ class DynamicGuard(BaseTask):
             "else": self.else_spec
         }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
         queue.complete(hold_id, {}, Nothing)
-        logger.debug(f"DynamicCond.baseRun: remove hold task from queue {hold_id}")
+        logger.debug("DynamicCond.baseRun: remove hold task from queue %s", hold_id)
         return {}, None
     
         
@@ -182,12 +183,23 @@ class EndOfQueue(AbsTask):
         super().__init__()
 
         
+def write_to_disk(dqueue, path):
+    with shelve.open(path, "n") as db:
+        while True:
+            output = dqueue.get_next_output()
+            if output == Nothing:
+                return
+            else:
+                for k, v in output.value.items():
+                    db[k] = v
+
+        
 def dispatch(job_queue, worker_queues):
     n = len(worker_queues)
     while True:
         jri = job_queue.get()
         job, results, subnode_results, jid = jri
-        logger.debug(f"dispatching type(job) = {type(job)} results = {results} subnode_results = {subnode_results} jid = {jid}")
+        logger.debug(f"dispatching type(job) = %s results = %s subnode_results = %s jid = %s", type(job), results, subnode_results, jid)
         if isinstance(job, EndOfQueue):
             for p in worker_queues:
                 p.put_in_subqueue(jri)
@@ -232,7 +244,7 @@ def mbind(job_run, params, subnode_results, sub_queue):
 
                         
 def work_on(sub_queue, library_paths):
-    logger.debug(f"library_paths = {library_paths}")
+    logger.debug("library_paths = %s", library_paths)
     sys.path.extend(library_paths)
     while True:
         jri = sub_queue.get()
@@ -245,9 +257,9 @@ def work_on(sub_queue, library_paths):
             #     "jid": jid,
             #     "params": results
             # }))
-            logger.debug(f"task begin {type(job)} {jid}")
+            logger.debug("task begin %s %s", type(job), jid)
             try:
-                logger.info(f"task begin {jid}")
+                logger.info("task begin %s", jid)
                 ret, resultj = job.run(results, subnode_results, sub_queue)
             except Exception as e:
                 resultj = Left((str(e), traceback.format_exc()))
@@ -259,8 +271,8 @@ def work_on(sub_queue, library_paths):
             #     "resultj": resultj,
             #     "params": results
             # }))
-            logger.debug(f"task finish {type(job)} {jid}")
-            logger.info(f"task finish {jid}")
+            logger.debug("task finish %s %s", type(job), jid)
+            logger.info(f"task finish %s", jid)
             sub_queue.complete(jid, ret, Just(resultj))
     
 
@@ -308,8 +320,7 @@ def get_task_depends_on(top, sub):
 
     
 def get_task_non_dependency_params(top, spec):
-    logger.debug(f"top = {top}, spec = {spec}")
-    return {k: v for k, v in spec.get("params", {}).items() if depends_on(top, v) is Nothing}
+    return {k: v for k, v in spec.get("params", {}).items() if depends_on(top, v) == Nothing}
 
 
 no_op = {
@@ -405,7 +416,7 @@ def generate_dependency_graph(graph, node_map, dep_set, return_ids, sub, parent_
     
 
 def sort_tasks(dep_set, subs):
-    logger.debug(f"sort_tasks: before: {subs}, dep_set = {dep_set}")
+    # logger.debug(f"sort_tasks: before: {subs}, dep_set = {dep_set}")
     copy = list(subs)
     subs_sorted = []
     visited = set(dep_set)
@@ -432,7 +443,7 @@ def sort_tasks(dep_set, subs):
                 dep += f"depends_on = {get_task_depends_on(dep_set2, task)}\n"
             raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
 
-    logger.debug(f"sort_tasks: after: {subs_sorted}")
+    # logger.debug(f"sort_tasks: after: {subs_sorted}")
     return subs_sorted
 
 
@@ -534,12 +545,12 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
 
 
 def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
-    logger.debug(f"enqueue: data = {data}")
+    # logger.debug(f"enqueue: data = {data}")
 
     for what in generate_tasks(spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold):
         job, dependencies, subnode_dependencies = what
         job_id = job.task_id
-        logger.debug(f"add task {type(job)} {job_id}\ndepends_on = {dependencies}\nsubnode_depends_on = {subnode_dependencies}")
+        logger.debug("add task %s %s\ndepends_on = %s\nsubnode_depends_on = %s", type(job), job_id, dependencies, subnode_dependencies)
         job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
 
 
