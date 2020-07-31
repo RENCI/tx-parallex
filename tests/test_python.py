@@ -1315,3 +1315,30 @@ b = {"s":{t:1}}
             }]
         }
     }
+
+def test_python_to_spec_assign_variable():
+    py = """
+a = 1
+b = a
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "name": "a"
+                }
+            }
+        }
+    }
+

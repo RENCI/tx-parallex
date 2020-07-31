@@ -7,7 +7,7 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred
 import ast
 import logging
 from importlib import import_module
@@ -188,10 +188,15 @@ def extract_expressions_to_assignments_in_expressions(exprs, counter, in_assignm
             return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in exprs))
         else:
             return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in enumerate(exprs)))
-    
-    
+
+        
 def is_dynamic_args(exprs):
-    return any(isinstance(expr, Name) for expr in exprs)
+    return any(is_dynamic(expr) for expr in exprs)
+
+
+def is_dynamic(expr):
+    return isinstance(expr, Name) or isinstance(expr, Call) or isinstance(expr, BinOp) or isinstance(expr, BoolOp) or isinstance(expr, UnaryOp) or isinstance(expr, Compare) or isinstance(expr, IfExp) or isinstance(expr, Subscript) or (isinstance(expr, List) and is_dynamic_args(expr.elts)) or (isinstance(expr, Tuple) and is_dynamic_args(expr.elts)) or (isinstance(expr, Dict) and (is_dynamic_args(expr.keys) or is_dynamic_args(expr.values))) or (isinstance(expr, Starred) and is_dynamic(expr.value))
+
 
 def generate_expression_and_assignment(expr_eta, counter):
     a = generate_variable_name(counter)
@@ -209,10 +214,6 @@ def python_to_spec(py):
     
     return python_to_spec_seq(body_eta)
     
-
-def is_dynamic(stmt):
-    return isinstance(stmt, Call) or isinstance(stmt, BinOp) or isinstance(stmt, BoolOp) or isinstance(stmt, UnaryOp) or isinstance(stmt, Compare) or isinstance(stmt, IfExp) or isinstance(stmt, Subscript) or (isinstance(stmt, List) and is_dynamic_args(stmt.elts)) or (isinstance(stmt, Tuple) and is_dynamic_args(stmt.elts)) or (isinstance(stmt, Dict) and (is_dynamic_args(stmt.keys) or is_dynamic_args(stmt.values)))
-
 
 def python_to_spec_seq(body, imported_names = {}):
     def func(stmts):
@@ -271,6 +272,12 @@ def python_to_spec_in_top(stmt, imported_names):
         target = targets[0]
         name = target.id
         app = stmt.value
+        if isinstance(app, Name):
+            func = "identity"
+            mod = "tx.functional.utils"
+            keywords = {
+                0: app
+            }
         if isinstance(app, Call):
             fqfunc = app.func
             keywords = {
