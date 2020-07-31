@@ -1,7 +1,7 @@
 import sys
 from multiprocessing import Manager, Process
 from tx.parallex.dependentqueue import DependentQueue, SubQueue
-from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue, write_to_disk
+from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue, write_to_disk, read_from_disk
 from tx.parallex.python import python_to_spec
 import yaml
 import json
@@ -10,7 +10,6 @@ import os.path
 import logging
 from tempfile import mkstemp
 import os
-import shelve
 from ..readable_log import getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -73,8 +72,8 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
             for p in processes:
                 p.join()
             if output_path is None:
-                with shelve.open(temp_path, "r") as db:
-                    return dict(db)
+                return read_from_disk(temp_path)
+
     finally:
         if output_path is None:
             os.remove(temp_path)

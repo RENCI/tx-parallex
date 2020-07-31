@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
     setuptools.setup(
         name="tx-parallex",
-        version="0.0.56",
+        version="0.0.57",
         license="MIT",
         author="Hao Xu",
         author_email="xuhao@renci.org",
@@ -28,7 +28,8 @@ with open("README.md", "r") as fh:
             "pyyaml==5.3.1",
             "tx-functional>=0.0.16",
             "graph-theory==2020.5.6.39102",
-            "terminaltables==3.1.0"
+            "terminaltables==3.1.0",
+            "jsonpickle==1.4.1"
         ],
         classifiers=[
             "Programming Language :: Python :: 3",

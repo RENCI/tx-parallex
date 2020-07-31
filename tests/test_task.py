@@ -9,7 +9,7 @@ import shelve
 import os
 import pytest
 from tx.parallex import start, start_python
-from tx.parallex.task import enqueue, EndOfQueue
+from tx.parallex.task import enqueue, EndOfQueue, read_from_disk
 from tx.parallex.dependentqueue import DependentQueue
 from tx.functional.maybe import Just
 from tx.functional.either import Left, Right
@@ -877,17 +877,12 @@ return {"t": 1}
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            with shelve.open(temp_path, "r") as db:
-                assert dict(db) == {"t": Right(1)}
-            assert(os.path.isfile(f"{temp_path}.dir"))
-            assert(os.path.isfile(f"{temp_path}.bak"))
-            assert(os.path.isfile(f"{temp_path}.dat"))
+            assert read_from_disk(temp_path) == {"t": Right(1)}
+            assert(os.path.isfile(f"{temp_path}"))
     finally:
-        os.remove(f"{temp_path}.dat")
-        os.remove(f"{temp_path}.dir")
-        os.remove(f"{temp_path}.bak")
-    
+        os.remove(f"{temp_path}")
 
+        
 def test_output_path_2():
     temp_path = "/tmp/out"
     try:
@@ -898,12 +893,9 @@ return {"t": 1}
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            with shelve.open(temp_path, "r") as db:
-                assert dict(db) == {"t": Right(1)}
+            assert read_from_disk(temp_path) == {"t": Right(1)}
     finally:
-        os.remove(f"{temp_path}.dat")
-        os.remove(f"{temp_path}.dir")
-        os.remove(f"{temp_path}.bak")
+        os.remove(f"{temp_path}")
 
 
 def test_output_path_3():
@@ -919,14 +911,11 @@ return {"t": 1}
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            with shelve.open(temp_path, "r") as db:
-                assert dict(db) == {"s": Right(0)}
+            assert read_from_disk(temp_path) == {"s": Right(0)}
                 
             start_python(3, py2, data, [], True, temp_path)
-            with shelve.open(temp_path, "r") as db:
-                assert dict(db) == {"t": Right(1)}
+            assert read_from_disk(temp_path) == {"t": Right(1)}
     finally:
-        os.remove(f"{temp_path}.dat")
-        os.remove(f"{temp_path}.dir")
-        os.remove(f"{temp_path}.bak")
+        os.remove(f"{temp_path}")
+
 

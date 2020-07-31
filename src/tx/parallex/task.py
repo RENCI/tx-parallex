@@ -22,7 +22,7 @@ from .dependentqueue import DependentQueue, SubQueue
 from .utils import inverse_function
 from .python import python_to_spec, EnvStack2
 from .stack import Stack
-import shelve
+import jsonpickle
 from tx.readable_log import format_message, getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -184,14 +184,21 @@ class EndOfQueue(AbsTask):
 
         
 def write_to_disk(dqueue, path):
-    with shelve.open(path, "n") as db:
+    with open(path, "w") as db:
         while True:
             output = dqueue.get_next_output()
             if output == Nothing:
-                return
+                break
             else:
-                for k, v in output.value.items():
-                    db[k] = v
+                db.write(jsonpickle.encode(output.value) + "\n")
+
+
+def read_from_disk(path):
+    obj = {}
+    with open(path) as db:
+        for line in db:
+            obj.update(jsonpickle.decode(line))
+    return obj
 
         
 def dispatch(job_queue, worker_queues):
