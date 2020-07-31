@@ -737,6 +737,48 @@ return {"t": a}"""
         assert ret == {f"t": Right(1)}
 
         
+def test_var_in_dict_lit():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = tx.functional.utils.identity(1)
+b = {"t": a}
+return {"r": b}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {f"r": Right({"t": 1})}
+
+        
+def test_var_in_list_lit():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = tx.functional.utils.identity(1)
+b = [a]
+return {"r": b}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {f"r": Right([1])}
+
+        
+def test_var_in_list_lit():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = tx.functional.utils.identity(1)
+b = (a,)
+return {"r": b}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {f"r": Right((1,))}
+
+        
 def test_subscript():
     print("test_start")
     with Manager() as manager:

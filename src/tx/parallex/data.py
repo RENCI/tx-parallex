@@ -92,11 +92,11 @@ def _subscript(a, b):
     return a[b]
 
 def _list(*args):
-    return args
+    return list(args)
 
 def _tuple(*args):
-    return tuple(args)
+    return args
 
 def _dict(*args):
-    n = len(args)/2
+    n = int(len(args)/2)
     return {k: v for k, v in zip(args[:n], args[n:])}
