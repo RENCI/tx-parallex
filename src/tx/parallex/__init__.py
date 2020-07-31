@@ -49,7 +49,8 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
     if validate_spec:
         validate(instance=spec, schema=schema)
     if output_path is None:
-        _, temp_path = mkstemp()
+        fd, temp_path = mkstemp()
+        os.close(fd)
     else:
         temp_path = output_path
 
