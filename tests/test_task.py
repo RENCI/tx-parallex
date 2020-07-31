@@ -751,6 +751,20 @@ return {"r": b}"""
         assert ret == {f"r": Right({"t": 1})}
 
         
+def test_var_in_dict_lit_2():
+    print("test_start")
+    with Manager() as manager:
+        py = """
+a = tx.functional.utils.identity({"t": 1})
+b = {"s":0, **a}
+return {"r": b}"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {f"r": Right({"s": 0, "t": 1})}
+
+        
 def test_var_in_list_lit():
     print("test_start")
     with Manager() as manager:

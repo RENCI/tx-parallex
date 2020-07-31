@@ -29,7 +29,9 @@ def to_mod(value):
 
     
 def python_ast_to_value(expr):
-    if isinstance(expr, List):
+    if expr is None:
+        return None
+    elif isinstance(expr, List):
         return [python_ast_to_value(elt) for elt in expr.elts]
     elif isinstance(expr, Dict):
         return {python_ast_to_value(k): python_ast_to_value(v) for k, v in zip(expr.keys, expr.values)}

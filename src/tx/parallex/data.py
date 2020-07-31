@@ -99,4 +99,10 @@ def _tuple(*args):
 
 def _dict(*args):
     n = int(len(args)/2)
-    return {k: v for k, v in zip(args[:n], args[n:])}
+    obj = {}
+    for k, v in zip(args[:n], args[n:]):
+        if k is None:
+            obj.update(v)
+        else:
+            obj[k] = v
+    return obj
