@@ -91,8 +91,22 @@ def _if_exp(t,b,o):
 def _subscript(a, b):
     return a[b]
 
+class Starred:
+    def __init__(self, a):
+        self.a = a
+
+def _starred(a):
+    return Starred(a)
+
 def _list(*args):
-    return list(args)
+    l = []
+    for arg in args:
+        if isinstance(arg, Starred):
+            l.extend(arg.a)
+        else:
+            l.append(arg)
+            
+    return l
 
 def _tuple(*args):
     return args

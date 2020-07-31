@@ -145,6 +145,9 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         slice, assigns_slice = extract_expressions_to_assignments_in_expression(expr.slice.value, counter + ["slice.value"])
         expr_eta = Subscript(value=value, slice=Index(value=slice), ctx=expr.ctx)
         assigns = assigns_value + assigns_slice
+    elif isinstance(expr, Starred):
+        value, assigns = extract_expressions_to_assignments_in_expression(expr.value, counter)
+        expr_eta = Starred(value=value, ctx=expr.ctx)
     elif isinstance(expr, List):
         exprs, assign_lists = extract_expressions_to_assignments_in_expressions(expr.elts, counter)
         assigns = list(chain(*assign_lists))
@@ -277,6 +280,12 @@ def python_to_spec_in_top(stmt, imported_names):
             mod = "tx.functional.utils"
             keywords = {
                 0: app
+            }
+        if isinstance(app, Starred):
+            func = "_starred"
+            mod = "tx.parallex.data"
+            keywords = {
+                0: app.value
             }
         if isinstance(app, Call):
             fqfunc = app.func
