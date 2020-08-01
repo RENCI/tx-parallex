@@ -1,8 +1,5 @@
 import sys
 from multiprocessing import Manager, Process
-from tx.parallex.dependentqueue import DependentQueue, SubQueue
-from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue, write_to_disk, read_from_disk
-from tx.parallex.python import python_to_spec
 import yaml
 import json
 from jsonschema import validate
@@ -10,14 +7,17 @@ import os.path
 import logging
 from tempfile import mkstemp
 import os
-from ..readable_log import getLogger
+from tx.parallex.dependentqueue import DependentQueue, SubQueue
+from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue, write_to_disk, read_from_disk
+from tx.parallex.python import python_to_spec
+from tx.readable_log import getLogger
 
 logger = getLogger(__name__, logging.INFO)
 
 with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
     schema = json.load(f)
 
-def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec, output_path):
+def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec=True, output_path=None):
     with open(pyf) as s:
         py = s.read()
     with open(dataf) as d:
@@ -25,7 +25,7 @@ def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec, ou
     return start_python(number_of_workers, py, data, system_paths, validate_spec, output_path)
 
 
-def run(number_of_workers, specf, dataf, system_paths=[], validate_spec, output_path):
+def run(number_of_workers, specf, dataf, system_paths=[], validate_spec=True, output_path=None):
     with open(specf) as s:
         spec = yaml.safe_load(s)
     with open(dataf) as d:
