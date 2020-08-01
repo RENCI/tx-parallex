@@ -17,15 +17,15 @@ logger = getLogger(__name__, logging.INFO)
 with open(os.path.join(os.path.dirname(__file__), "schema.json")) as f:
     schema = json.load(f)
 
-def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec=True, output_path=None):
+def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec, output_path):
     with open(pyf) as s:
         py = s.read()
     with open(dataf) as d:
         data = yaml.safe_load(d)
-    return start_python(number_of_workers, py, data, output_path, system_paths, validate_spec, return_results)
+    return start_python(number_of_workers, py, data, system_paths, validate_spec, output_path)
 
 
-def run(number_of_workers, specf, dataf, system_paths=[], validate_spec=True, output_path=None):
+def run(number_of_workers, specf, dataf, system_paths=[], validate_spec, output_path):
     with open(specf) as s:
         spec = yaml.safe_load(s)
     with open(dataf) as d:
