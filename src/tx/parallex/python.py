@@ -100,9 +100,9 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
         return assigns + [stmt_eta]
     elif isinstance(stmt, Return):
         ret = stmt.value
-        exprs, assigns = zip(*(extract_expressions_to_assignments_in_expression(value, counter) for value in ret.values))
-        stmt_eta = Return(value=Dict(keys=ret.keys, values=list(exprs)))
-        return list(chain(*assigns)) + [stmt_eta]
+        expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter)
+        stmt_eta = Return(value=expr)
+        return assigns + [stmt_eta]
     else:
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter, in_assignment=True)
         stmt_eta = extract_assignments_from_destructure(stmt.targets[0], expr, stmt.type_comment, counter + ["target"])
@@ -263,12 +263,11 @@ def python_to_spec_in_top(stmt, imported_names):
             "else": python_to_spec_seq(stmt.orelse, imported_names),
         }]
     elif isinstance(stmt, Return):
-        ret = stmt.value
+        ret_val = stmt.value
         return [{
             "type": "ret",
-            "var": ret_key.value,
             "obj": python_ast_to_term(ret_val)
-        } for ret_key, ret_val in zip(ret.keys, ret.values)]
+        }]
             
     else:
         targets = stmt.targets

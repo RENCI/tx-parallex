@@ -144,12 +144,10 @@ on:
     true
 then:
   type: ret
-  var: x
   obj:
     data: 1
 else:
   type: ret
-  var: x
   obj:
     data: 0
 ```
@@ -222,27 +220,25 @@ sub:
 ```
 
 ### `ret`
-`ret` specify a name that will map to a value. The pipeline will return a dictionary containing these names. When a task appears under a `map` task, each name is prefix with the index of the element in that collection as following 
+`ret` specify a value. The pipeline will return a dictionary. When a task appears under a `map` task, it is prefix with the index of the element in that collection as following 
 
 ```
-<index>.<name>
+<index>
 ```
 For nested maps, the indices will be chained together as followings
 ```
-<index>. ... .<index>.<name>
+<index>. ... .<index>
 ```
 
 Syntax:
 ```
 type: ret
-var: <var>
 obj: <value>
 ```
 
 Example:
 ```
 type: ret
-var: x
 obj: 
     name: z
 ```
@@ -283,9 +279,7 @@ Example:
 ```
 a = 1
 y = sqr(x=a)
-return {
-  "b": y
-}
+return y
 ```
 
 ### function application
@@ -308,9 +302,7 @@ Example:
 ```
 y = math.sqr(1)
 z = math.sqr(y)
-return {
-  "c": z
-}
+return z
 ```
 
 ### parallel for
@@ -326,9 +318,7 @@ Example:
 ```
 for a in [1, 2, 3]:
   y = math.sqr(a)
-  return {
-    "b": y
-  }
+  return y
 ```
 
 ### if
@@ -344,28 +334,22 @@ This translates to `cond`.
 Example:
 ```
 if z:
-    return {
-        "x": 1
-    }
+    return 1
 else:
-    return {
-        "x": 0
-    }
+    return 0
 ```
 
 The semantics of if is different from python, variables inside if is not visible outside
 ### return
 ```
-return <dict>
+return <expr>
 ```
-This translates to `ret`. The key of the dict will be translated to the var in `ret`.
+This translates to `ret`. 
 
 Example:
 ```
 y = math.sqr(1)
-return {
-  "b": y
-}
+return y
 ```
 
 ## Data

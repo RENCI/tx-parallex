@@ -49,7 +49,7 @@ def test_python_to_spec3():
     py = """
 var = mod3.func2()
 a = mod1.mod2.func(param=var)
-return {'ret1': a}"""
+return a"""
     spec = python_to_spec(py)
     assert spec == {
         "type":"top",
@@ -71,9 +71,35 @@ return {'ret1': a}"""
             }
         }, {
             "type": "ret",
-            "var": "ret1",
             "obj": {
-                "name": "a"
+                "name": "a"    
+            }
+        }]
+    }
+
+def test_python_to_spec3():
+    py = """
+return {'ret1': a}"""
+    spec = python_to_spec(py)
+    assert spec == {
+        "type":"top",
+        "sub": [{
+            "type": "python",
+            "name": "_var_0",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": "ret1"
+                },
+                1 : {
+                    "name": "a"
+                }
+            }
+        }, {
+            "type": "ret",
+            "obj": {
+                "name": "_var_0"    
             }
         }]
     }
@@ -310,7 +336,7 @@ d = [2,3]
 c = tests.test_task.identity(d)
 for j in c:
     a = tests.test_task.g(x=2,y=j)
-    return {"x": a}"""
+    return a"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -354,7 +380,6 @@ for j in c:
                         }
                     }, {
                         "type": "ret",
-                        "var": "x",
                         "obj": {
                             "name": "a"
                         }
@@ -368,13 +393,9 @@ def test_python_to_spec12():
     py = """
 z = True
 if z:
-    return {
-        "x": 1
-    }
+    return 1
 else:
-    return {
-        "x": 0
-    }"""
+    return 0"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -390,14 +411,12 @@ else:
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -410,13 +429,9 @@ def test_python_to_spec13():
     py = """
 z = False
 if z:
-    return {
-        "x": 1
-    }
+    return 1
 else:
-    return {
-        "x": 0
-    }"""
+    return 0"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -432,14 +447,12 @@ else:
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -452,13 +465,9 @@ def test_python_to_spec14():
     py = """
 z = tests.test_task.true()
 if z:
-    return {
-        "x": 1
-    }
+    return 1
 else:
-    return {
-        "x": 0
-    }"""
+    return 0"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -477,14 +486,12 @@ else:
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -497,13 +504,9 @@ def test_python_to_spec15():
     py = """
 z = tests.test_task.false()
 if z:
-    return {
-        "x": 1
-    }
+    return 1
 else:
-    return {
-        "x": 0
-    }"""
+    return 0"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -522,14 +525,12 @@ else:
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -581,88 +582,88 @@ z = f(_var_0_0)
 def test_expression_to_assigns4():
     py = """
 for i in f():
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0 = f()
 for i in _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns5():
     py = """
 if f():
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0 = f()
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns6():
     py = """
 if a == b:
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0 = a == b
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns7():
     py = """
 if a and b:
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0 = a and b
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns8():
     py = """
 if a in b:
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0 = a in b
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns9():
     py = """
 if c() and d():
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0_0 = c()
 _var_0_1 = d()
 _var_0 = _var_0_0 and _var_0_1
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns10():
     py = """
 if c() in d():
-    return {"i":i}
+    return i
 """
     py2 = """
 _var_0_left = c()
 _var_0_comparator_0 = d()
 _var_0 = _var_0_left in _var_0_comparator_0
 if _var_0:
-    return {"i":i}
+    return i
 """
     do_compare_expression(py, py2)
 
@@ -927,7 +928,7 @@ def test_python_to_spec25():
     py = """
 c = tests.test_task.identity([0])
 for j in c:
-    return {"x": j}"""
+    return j"""
 
     spec = python_to_spec(py)
     assert spec == {
@@ -950,7 +951,6 @@ for j in c:
             "var": "j",
             "sub": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "name": "j"
                 }
@@ -1340,5 +1340,83 @@ b = a
                 }
             }
         }
+    }
+
+def test_python_to_spec_assign_variable():
+    py = """
+a = 1
+b = a
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "let",
+        "var": "a",
+        "obj": {
+            "data": 1
+        },
+        "sub": {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "name": "a"
+                }
+            }
+        }
+    }
+
+def test_python_to_spec_starred_variable_in_list_lit():
+    py = """
+c = [*b]
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "_var_0_0",
+            "mod": "tx.parallex.data",
+            "func": "_starred",
+            "params": {
+                0: {
+                    "name": "b"
+                }
+            }
+        }, {
+            "type": "python",
+            "name": "c",
+            "mod": "tx.parallex.data",
+            "func": "_list",
+            "params": {
+                0: {
+                    "name": "_var_0_0"
+                }
+            }
+        }]
+    }
+
+def test_python_to_spec_starred_variable_in_dict_lit():
+    py = """
+c = {**b}
+"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+            "type": "python",
+            "name": "c",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": None
+                },
+                1: {
+                    "name": "b"
+                }
+            }
     }
 

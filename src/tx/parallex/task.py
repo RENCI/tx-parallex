@@ -151,31 +151,29 @@ class DynamicGuard(BaseTask):
     
         
 class DynamicRet(AbsTask):
-    def __init__(self, var, obj_spec, ret_prefix, task_id=None):
+    def __init__(self, obj_spec, ret_prefix, task_id=None):
         super().__init__(task_id=task_id)
-        self.var = var
         self.obj_spec = obj_spec
         self.ret_prefix = ret_prefix
 
-    __repr__ = autorepr(["task_id", "var", "obj_spec", "ret_prefix"])
-    __str__, __unicode__ = autotext("DynamicRet(task_id={self.task_id} var={self.var} obj_spec={self.obj_spec} ret_prefix={self.ret_prefix})")
+    __repr__ = autorepr(["task_id", "obj_spec", "ret_prefix"])
+    __str__, __unicode__ = autotext("DynamicRet(task_id={self.task_id} obj_spec={self.obj_spec} ret_prefix={self.ret_prefix})")
 
     def run(self, results, subnode_results, queue):
-        return {".".join(chain(map(str, self.ret_prefix), [self.var])): results[self.obj_spec]}, None
+        return {".".join(map(str, self.ret_prefix)): results[self.obj_spec]}, None
 
         
 class Ret(AbsTask):
-    def __init__(self, var, obj, ret_prefix, task_id=None):
+    def __init__(self, obj, ret_prefix, task_id=None):
         super().__init__(task_id=task_id)
-        self.var = var
         self.obj = obj
         self.ret_prefix = ret_prefix
 
-    __repr__ = autorepr(["task_id", "var", "obj", "ret_prefix"])
-    __str__, __unicode__ = autotext("Ret({self.task_id} {self.var} {self.obj} {self.ret_prefix})")
+    __repr__ = autorepr(["task_id", "obj", "ret_prefix"])
+    __str__, __unicode__ = autotext("Ret({self.task_id} {self.obj} {self.ret_prefix})")
 
     def run(self, results, subnode_results, queue):
-        return {".".join(map(str, self.ret_prefix + [self.var])): Right(self.obj)}, None
+        return {".".join(map(str, self.ret_prefix)): Right(self.obj)}, None
 
         
 class EndOfQueue(AbsTask):
@@ -537,16 +535,15 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
 #        logger.debug(f"add task: {task.task_id} depends_on {dependencies}")
         yield task, set(dependencies.values()) | hold, set()
     elif ty == "ret":
-        var = spec["var"]
         obj_name = spec["obj"]
         if "name" in obj_name and obj_name["name"] in top:
             obj_spec = top[obj_name["name"]]
-            task = DynamicRet(var, obj_spec, ret_prefix)
+            task = DynamicRet(obj_spec, ret_prefix)
             dep = {obj_spec}
             yield task, dep | hold, set()
         else:
             obj = arg_spec_to_arg(data, obj_name)
-            yield Ret(var, obj, ret_prefix), hold, set()
+            yield Ret(obj, ret_prefix), hold, set()
     else:
         raise RuntimeError(f'unsupported spec type {ty}')
 

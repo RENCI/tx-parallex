@@ -145,7 +145,6 @@ def test_let():
                     }
                 }, {
                     "type": "ret",    
-                    "var": "x",
                     "obj": {
                         "name": "a"
                     }
@@ -154,7 +153,7 @@ def test_let():
         }
         data = {}
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(1)}
+        assert ret == {"": Right(1)}
 
         
 def f(x):
@@ -200,7 +199,6 @@ def test_start():
                 }
             }, {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "name": "a"
                 }
@@ -209,7 +207,7 @@ def test_start():
         data = {"y": 1}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(4)}
+        assert ret == {"": Right(4)}
 
 
 def test_map_start():
@@ -255,7 +253,6 @@ def test_map_start():
                     }
                 }, {
                     "type": "ret",
-                    "var": "x",
                     "obj": {
                         "name": "a"
                     }
@@ -265,7 +262,7 @@ def test_map_start():
         data = {"z": [1, 2, 3]}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"0.x": Right(4), "1.x": Right(5), "2.x": Right(6)}
+        assert ret == {"0": Right(4), "1": Right(5), "2": Right(6)}
 
 
 def test_cond_then_start():
@@ -278,14 +275,12 @@ def test_cond_then_start():
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -294,7 +289,7 @@ def test_cond_then_start():
         data = {"z": True}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(1)}
+        assert ret == {"": Right(1)}
 
 
 def test_cond_else_start():
@@ -307,14 +302,12 @@ def test_cond_else_start():
             },
             "then": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 1
                 }
             },
             "else": {
                 "type": "ret",
-                "var": "x",
                 "obj": {
                     "data": 0
                 }
@@ -323,7 +316,7 @@ def test_cond_else_start():
         data = {"z": False}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(0)}
+        assert ret == {"": Right(0)}
 
 
 def false():
@@ -351,14 +344,12 @@ def test_dynamic_cond_then_start():
                 },
                 "then": {
                     "type": "ret",
-                    "var": "x",
                     "obj": {
                         "data": 1
                     }
                 },
                 "else": {
                     "type": "ret",
-                    "var": "x",
                     "obj": {
                         "data": 0
                     }
@@ -368,7 +359,7 @@ def test_dynamic_cond_then_start():
         data = {"z": True}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(1)}
+        assert ret == {"": Right(1)}
 
 
 def test_dynamic_cond_else_start():
@@ -390,14 +381,12 @@ def test_dynamic_cond_else_start():
                 },
                 "then": {
                     "type": "ret",
-                    "var": "x",
                     "obj": {
                         "data": 1
                     }
                 },
                 "else": {
                     "type": "ret",
-                    "var": "x",
                     "obj": {
                         "data": 0
                     }
@@ -407,7 +396,7 @@ def test_dynamic_cond_else_start():
         data = {"z": False}
         
         ret = start(3, spec, data, [], True, None)
-        assert ret == {"x": Right(0)}
+        assert ret == {"": Right(0)}
 
 
 def test_dsl_start():
@@ -417,12 +406,12 @@ def test_dsl_start():
 a = tests.test_task.f(x=b)
 b = tests.test_task.f(x=c)
 c = tests.test_task.f(x=y)
-return {"x": a}"""
+return a"""
 
         data = {"y": 1}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"x": Right(4)}
+        assert ret == {"": Right(4)}
 
 
 def test_dsl_depend_for_to_outer_start():
@@ -434,12 +423,12 @@ d = [2,3]
 c = tests.test_task.f(x=y)
 for j in d:
     a = tests.test_task.g(x=c,y=j)
-    return {"x": a}"""
+    return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"0.x": Right(4), "1.x": Right(5)}
+        assert ret == {"0": Right(4), "1": Right(5)}
 
 
 def test_dynamic_for_0():
@@ -450,12 +439,12 @@ d = [2,3]
 c = tests.test_task.identity(d)
 for j in c:
     a = tests.test_task.g(x=2,y=j)
-    return {"x": a}"""
+    return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"0.x": Right(4), "1.x": Right(5)}
+        assert ret == {"0": Right(4), "1": Right(5)}
 
 
 def test_dynamic_return():
@@ -463,12 +452,12 @@ def test_dynamic_return():
     with Manager() as manager:
         py = """
 c = tests.test_task.identity([0])
-return {"c": c}"""
+return c"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"c": Right([0])}
+        assert ret == {"": Right([0])}
 
 
 def test_dynamic_for_1():
@@ -477,12 +466,12 @@ def test_dynamic_for_1():
         py = """
 c = tests.test_task.identity([0])
 for j in c:
-    return {"x": j}"""
+    return j"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"0.x": Right(0)}
+        assert ret == {"0": Right(0)}
 
 
 def test_dynamic_for_2():
@@ -493,12 +482,12 @@ from tests.test_task import identity
 d = identity(2)
 c = identity([2,3])
 for j in c:
-    return {"x": d+j}"""
+    return d+j"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"0.x": Right(4), "1.x": Right(5)}
+        assert ret == {"0": Right(4), "1": Right(5)}
 
 
 def test_dynamic_type_error():
@@ -508,12 +497,12 @@ def test_dynamic_type_error():
 from tests.test_task import identity
 d = identity(2)
 c = identity([2,3])
-return {"x": d+c}"""
+return d+c"""
         
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert isinstance(ret["x"], Left)
+        assert isinstance(ret[""], Left)
 
 
 def test_dynamic_type_error_2():
@@ -522,12 +511,12 @@ def test_dynamic_type_error_2():
         py = """
 c = tests.test_task.identity([2])
 for j in c:
-    return {"x": 2+c}"""
+    return 2+c"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert isinstance(ret["0.x"], Left)
+        assert isinstance(ret["0"], Left)
 
 
 def test_circular_dependency():
@@ -550,14 +539,14 @@ def test_dynamic_if():
         py = """
 from tests.test_task import identity
 if identity(True):
-        return {"i": 1}
+        return 1
 else:
-        return {"i": 0}"""
+        return 0"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"i": Right(1)}
+        assert ret == {"": Right(1)}
 
         
 def test_dynamic_if_2():
@@ -566,14 +555,14 @@ def test_dynamic_if_2():
         py = """
 from tests.test_task import identity
 if identity(False):
-        return {"i": 1}
+        return 1
 else:
-        return {"i": 0}"""
+        return 0"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"i": Right(0)}
+        assert ret == {"": Right(0)}
 
         
 def test_dynamic_if_3():
@@ -583,14 +572,14 @@ def test_dynamic_if_3():
 from tests.test_task import identity
 i = identity(True)
 if i:
-        return {"i": i}
+        return i
 else:
-        return {"i": i}"""
+        return i"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"i": Right(True)}
+        assert ret == {"": Right(True)}
 
         
 def test_dynamic_if_4():
@@ -600,14 +589,14 @@ def test_dynamic_if_4():
 from tests.test_task import identity
 i = identity(False)
 if i:
-        return {"i": i}
+        return i
 else:
-        return {"i": i}"""
+        return i"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"i": Right(False)}
+        assert ret == {"": Right(False)}
 
         
 def test_dynamic_if_5():
@@ -617,12 +606,12 @@ def test_dynamic_if_5():
 from tests.test_task import identity
 if identity(True):
         x=identity(1)
-        return {"i": x}"""
+        return x"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"i": Right(1)}
+        assert ret == {"": Right(1)}
 
 
 def test_dynamic_for_10():
@@ -631,12 +620,12 @@ def test_dynamic_for_10():
         with Manager() as manager:
             py = """
 for j in tests.test_task.identity([1]):
-    return {"x": j + 2}"""
+    return j + 2"""
 
             data = {}
         
             ret = start_python(3, py, data, [], True, None)
-            assert ret == {"0.x": Right(3)}
+            assert ret == {"0": Right(3)}
 
 
 def test_data_start():
@@ -644,12 +633,12 @@ def test_data_start():
     with Manager() as manager:
         py = """
 a = tests.test_task.f(x=1)
-return {"x": a}"""
+return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"x": Right(2)}
+        assert ret == {"": Right(2)}
 
 
 def test_args_start():
@@ -657,12 +646,12 @@ def test_args_start():
     with Manager() as manager:
         py = """
 a = tests.test_task.f(1)
-return {"x": a}"""
+return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"x": Right(2)}
+        assert ret == {"": Right(2)}
 
 
 def test_dep_args_start():
@@ -671,12 +660,12 @@ def test_dep_args_start():
         py = """
 a = tests.test_task.f(1)
 b = tests.test_task.f(a)
-return {"x": b}"""
+return b"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"x": Right(3)}
+        assert ret == {"": Right(3)}
 
 
 def add(a,b):
@@ -689,12 +678,12 @@ def test_map_data_start():
         py = """
 for s in [1,2,3,4,5,6,7]:
     t = tests.test_task.add(a=s, b=1)
-    return {"t": t}"""
+    return t"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"{i}.t": Right(i+2) for i in range(0,7)}
+        assert ret == {f"{i}": Right(i+2) for i in range(0,7)}
 
         
 def test_shared_object_reference_counting():
@@ -703,12 +692,12 @@ def test_shared_object_reference_counting():
         py = """
 s = tx.functional.utils.identity(0.5)
 t = tests.test_task.add(a=s, b=s)
-return {"t": t}"""
+return t"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"t": Right(1)}
+        assert ret == {"": Right(1)}
 
         
 def test_system_function():
@@ -716,12 +705,12 @@ def test_system_function():
     with Manager() as manager:
         py = """
 a = all([True])
-return {"t": a}"""
+return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"t": Right(True)}
+        assert ret == {"": Right(True)}
 
         
 def test_if_exp():
@@ -729,12 +718,12 @@ def test_if_exp():
     with Manager() as manager:
         py = """
 a = 1 if True else 0
-return {"t": a}"""
+return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"t": Right(1)}
+        assert ret == {"": Right(1)}
 
         
 def test_var_in_dict_lit():
@@ -743,12 +732,12 @@ def test_var_in_dict_lit():
         py = """
 a = tx.functional.utils.identity(1)
 b = {"t": a}
-return {"r": b}"""
+return b"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"r": Right({"t": 1})}
+        assert ret == {"": Right({"t": 1})}
 
         
 def test_var_in_dict_lit_2():
@@ -757,12 +746,12 @@ def test_var_in_dict_lit_2():
         py = """
 a = tx.functional.utils.identity({"t": 1})
 b = {"s":0, **a}
-return {"r": b}"""
+return b"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"r": Right({"s": 0, "t": 1})}
+        assert ret == {"": Right({"s": 0, "t": 1})}
 
         
 def test_var_in_list_lit():
@@ -771,12 +760,12 @@ def test_var_in_list_lit():
         py = """
 a = tx.functional.utils.identity(1)
 b = [a]
-return {"r": b}"""
+return b"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"r": Right([1])}
+        assert ret == {"": Right([1])}
 
         
 def test_var_in_list_lit():
@@ -785,12 +774,12 @@ def test_var_in_list_lit():
         py = """
 a = tx.functional.utils.identity(1)
 b = (a,)
-return {"r": b}"""
+return b"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"r": Right((1,))}
+        assert ret == {"": Right((1,))}
 
         
 def test_subscript():
@@ -798,23 +787,43 @@ def test_subscript():
     with Manager() as manager:
         py = """
 a = [0,1,2][1]
-return {"t": a}"""
+return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"t": Right(1)}
+        assert ret == {"": Right(1)}
 
 
+def test_starred_var_in_list_lit():
+    with Manager() as manager:
+        py = """
+b = [1]
+return [*b]
+"""
+        data = {}
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {"": Right([1])}
+        
+def test_starred_var_in_dict_lit():
+    with Manager() as manager:
+        py = """
+b = {"t":1}
+return {**b}
+"""
+        data = {}
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {"": Right({"t":1})}
+        
 def test_destructure():
     with Manager() as manager:
         py = """
 a,b,c = [1,2,3]
-return {"t":a+b+c}
+return a+b+c
 """
         data = {}
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {f"t": Right(6)}
+        assert ret == {"": Right(6)}
         
 def runtime_error():
     raise RuntimeError()
@@ -828,78 +837,78 @@ def test_exception_error():
     with Manager() as manager:
         py = """
 t = tests.test_task.runtime_error()
-return {"t": t}
+return t
 """
         data = {}
 
         ret = start_python(3, py, data, [], True, None)
-        assert isinstance(ret["t"], Left)
+        assert isinstance(ret[""], Left)
 
         
 def test_return_error():
     with Manager() as manager:
         py = """
 t = tests.test_task.return_error()
-return {"t": t}
+return t
 """
         data = {}
 
         ret = start_python(3, py, data, [], True, None)
-        assert isinstance(ret["t"], Left)
+        assert isinstance(ret[""], Left)
 
 
 def test_args_order():
     with Manager() as manager:
         py = """
 t = tests.test_task.identity(2)
-return {"t": t - 1}
+return t - 1
 """
         data = {}
 
         ret = start_python(3, py, data, [], True, None)
-        assert ret == {"t": Right(1)}
+        assert ret == {"": Right(1)}
 
 
 def test_system_paths():
     with Manager() as manager:
         py = """
 t = mod.func(1)
-return {"t": t}
+return t
 """
         data = {}
 
         ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
-        assert ret == {"t": Right(1)}
+        assert ret == {"": Right(1)}
 
     
 def test_system_paths_2():
     with Manager() as manager:
         py = """
 from mod import func
-return {"t": func(1)}
+return func(1)
 """
         data = {}
 
         ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
-        assert ret == {"t": Right(1)}
+        assert ret == {"": Right(1)}
 
     
 def test_system_paths_3():
     with Manager() as manager:
         py = """
 from mod import *
-return {"t": func(1)}
+return func(1)
 """
         data = {}
 
         ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None)
-        assert ret == {"t": Right(1)}
+        assert ret == {"": Right(1)}
 
 
 def test_system_paths_4():
     with Manager() as manager:
         py = """
-return {"t": 1}
+return 1
 """
         data = {}
 
@@ -913,7 +922,7 @@ def test_system_paths_5():
         p = str(pathlib.Path(__file__).parent.absolute() / "user")
         sys.path.append(p)
         py = """
-return {"t": 1}
+return 1
 """
         data = {}
 
@@ -928,12 +937,12 @@ def test_output_path():
     try:
         with Manager() as manager:
             py = """
-return {"t": 1}
+return 1
 """
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            assert read_from_disk(temp_path) == {"t": Right(1)}
+            assert read_from_disk(temp_path) == {"": Right(1)}
             assert(os.path.isfile(f"{temp_path}"))
     finally:
         os.remove(f"{temp_path}")
@@ -944,12 +953,12 @@ def test_output_path_2():
     try:
         with Manager() as manager:
             py = """
-return {"t": 1}
+return 1
 """
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            assert read_from_disk(temp_path) == {"t": Right(1)}
+            assert read_from_disk(temp_path) == {"": Right(1)}
     finally:
         os.remove(f"{temp_path}")
 
@@ -959,18 +968,18 @@ def test_output_path_3():
     try:
         with Manager() as manager:
             py = """
-return {"s": 0}
+return 0
 """
             py2 = """
-return {"t": 1}
+return 1
 """
             data = {}
 
             start_python(3, py, data, [], True, temp_path)
-            assert read_from_disk(temp_path) == {"s": Right(0)}
+            assert read_from_disk(temp_path) == {"": Right(0)}
                 
             start_python(3, py2, data, [], True, temp_path)
-            assert read_from_disk(temp_path) == {"t": Right(1)}
+            assert read_from_disk(temp_path) == {"": Right(1)}
     finally:
         os.remove(f"{temp_path}")
 
