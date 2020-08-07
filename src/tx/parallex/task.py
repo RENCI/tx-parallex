@@ -15,7 +15,7 @@ from functools import partial
 from copy import deepcopy
 from ctypes import c_int
 import builtins
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, parallel_backend
 import os
 from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing, maybe
@@ -478,7 +478,7 @@ def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set())
                 data2 = {**data, var:row}
                 generate_tasks(queue, subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) 
 
-            Parallel(n_jobs=nthreads_generator, prefer="threads")(delayed(generate_tasks_for_item)(i, row) for i, row in enumerate(coll))
+            Parallel()(delayed(generate_tasks_for_item)(i, row) for i, row in enumerate(coll))
     elif ty == "cond":
         cond_name = spec["on"]
         then_spec = spec["then"]
@@ -541,7 +541,8 @@ def enqueue_task(job_queue, job, dependencies, subnode_dependencies):
 
 def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
     # logger.debug(f"enqueue: data = {data}")
-    generate_tasks(job_queue, spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold)
+    with parallel_backend("threading", n_jobs=nthreads_generator):
+        generate_tasks(job_queue, spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold)
 
     
 
