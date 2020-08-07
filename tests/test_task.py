@@ -48,18 +48,18 @@ def test_enqueue():
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         assert n.kwargs == {"x":1}
         assert r == {}
         dq.complete(f, {}, Just(6))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         assert n.kwargs == {"x":2}
         assert r == {}
         dq.complete(f, {}, Just(6))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         assert n.kwargs == {"x":3}
         dq.complete(f, {}, Just(6))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         print(n)
         assert isinstance(n, EndOfQueue)
 
@@ -101,19 +101,19 @@ def test_enqueue_dependent():
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
-        n, r, sr, f1 = dq.get(block=False)
+        n, r, sr, f1 = dq.get()
         print(n)
         assert r == {}
         dq.complete(f1, {}, Just(1))
-        n, r, sr, f2 = dq.get(block=False)
+        n, r, sr, f2 = dq.get()
         print(n)
         assert r == {f1:1}
         dq.complete(f2, {}, Just(2))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         print(n)
         assert r == {f2:2}
         dq.complete(f, {}, Just(3))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get()
         print(n)
         assert isinstance(n, EndOfQueue)
 

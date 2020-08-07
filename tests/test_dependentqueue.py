@@ -19,19 +19,19 @@ def test_dep():
         id2 = dq.put(2, depends_on={id3})
         id1 = dq.put(1, depends_on={id3, id2})
         
-        n, r, sr, f1 = dq.get(block=False)
+        n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
         dq.complete(f1, {}, Just(6))
-        n, r, sr, f2 = dq.get(block=False)
+        n, r, sr, f2 = dq.get(block=True)
         assert n == 2
         assert r == {f1: 6}
         dq.complete(f2, {}, Just(5))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=True)
         assert n == 1
         assert r == {f2: 5, f1: 6}
         dq.complete(f, {}, Just(4))
-        n, r, sr, f = dq.get(block=False)
+        n, r, sr, f = dq.get(block=True)
         assert n is None
 
 def test_eoq():
@@ -48,7 +48,7 @@ def test_eoq():
         id3 = dq.put(2)
         
         logger.debug("get next node")
-        n, _, _, f1 = dq.get(block=False)
+        n, _, _, f1 = dq.get(block=True)
         logger.debug("next node found")
 
         v = manager.Value(c_int, 1)
@@ -69,13 +69,10 @@ def test_eoq_2():
 
         id3 = dq.put(3)
         
-        n, r, sr, f1 = dq.get(block=False)
+        n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
         dq.complete(f1, {}, Just(6))
-
-        n, r, sr, f = dq.get(block=False)
-        assert n == 2
 
         n, r, sr, f = dq.get(block=True)
         assert n == 2

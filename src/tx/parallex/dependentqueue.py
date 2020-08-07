@@ -1,5 +1,5 @@
 from queue import Empty
-from multiprocessing import Manager, Queue
+from multiprocessing import Manager, Queue, Process
 from uuid import uuid1
 from ctypes import c_bool
 import logging
@@ -112,59 +112,61 @@ class NodeMap:
 
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id, ret, result):
-        with self.lock:
-            logger.debug("complete_node: node_id = %s, ret = %s, result = %s", node_id, ret, result)
-            node = self.nodes[node_id]
-            meta = self.meta[node_id]
-            refs = meta.refs
-            subnode_refs = meta.subnode_refs
-            logger.debug("complete_node: refs = %s subnode_refs = %s", refs, subnode_refs)
+        def func():
+            with self.lock:
+                logger.debug("complete_node: node_id = %s, ret = %s, result = %s", node_id, ret, result)
+                node = self.nodes[node_id]
+                meta = self.meta[node_id]
+                refs = meta.refs
+                subnode_refs = meta.subnode_refs
+                logger.debug("complete_node: refs = %s subnode_refs = %s", refs, subnode_refs)
 
-            reference_count = 0
-            
-            for ref in subnode_refs:
-                refmeta = self.meta[ref]
-                refmeta.subnode_depends -= 1
-                if result != Nothing:
-                    refmeta.subnode_results.add(node_id)
-                    reference_count += 1
-                self.meta[ref] = refmeta
-                logger.debug("complete_node: subnode ref = %s, refdep = %s, refresults = %s", ref, refmeta.subnode_depends, refmeta.subnode_results)
-                    
-            for ref in refs:
-                refmeta = self.meta[ref]
-                refmeta.depends -= 1
-                if result != Nothing:
-                    refmeta.results.add(node_id)
-                    reference_count += 1
-                self.meta[ref] = refmeta
-                logger.debug("complete_node: ref = %s, refdep = %s, refresults = %s", ref, refmeta.depends, refmeta.results)
+                reference_count = 0
 
-            if reference_count > 0:
-                self.shared_objects[node_id] = result.value
-                self.shared_objects_reference_count[node_id] = reference_count
+                for ref in subnode_refs:
+                    refmeta = self.meta[ref]
+                    refmeta.subnode_depends -= 1
+                    if result != Nothing:
+                        refmeta.subnode_results.add(node_id)
+                        reference_count += 1
+                    self.meta[ref] = refmeta
+                    logger.debug("complete_node: subnode ref = %s, refdep = %s, refresults = %s", ref, refmeta.subnode_depends, refmeta.subnode_results)
 
-            logger.debug("complete_node: self.shared_objects = %s", self.shared_objects)
+                for ref in refs:
+                    refmeta = self.meta[ref]
+                    refmeta.depends -= 1
+                    if result != Nothing:
+                        refmeta.results.add(node_id)
+                        reference_count += 1
+                    self.meta[ref] = refmeta
+                    logger.debug("complete_node: ref = %s, refdep = %s, refresults = %s", ref, refmeta.depends, refmeta.results)
 
-            for ref in subnode_refs | refs:
-                refmeta = self.meta[ref]
-                if refmeta.depends == 0 and refmeta.subnode_depends == 0:
-                    task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
-                    self.ready_queue.put(task)
+                if reference_count > 0:
+                    self.shared_objects[node_id] = result.value
+                    self.shared_objects_reference_count[node_id] = reference_count
 
-            logger.debug("complete_node: putting %s on output_queue", ret)
-            self.output_queue.put(Just(ret))
-            del self.meta[node_id]
-            del self.nodes[node_id]
-            logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
-            if len(self.nodes) == 0:
-                self.ready_queue.put((Node(self.end_of_queue), {}, {}))
-                self.output_queue.put(Nothing)
+                logger.debug("complete_node: self.shared_objects = %s", self.shared_objects)
+
+                for ref in subnode_refs | refs:
+                    refmeta = self.meta[ref]
+                    if refmeta.depends == 0 and refmeta.subnode_depends == 0:
+                        task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
+                        self.ready_queue.put(task)
+
+                logger.debug("complete_node: putting %s on output_queue", ret)
+                self.output_queue.put(Just(ret))
+                del self.meta[node_id]
+                del self.nodes[node_id]
+                logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
+                if len(self.nodes) == 0:
+                    self.ready_queue.put((Node(self.end_of_queue), {}, {}))
+                    self.output_queue.put(Nothing)
+        Process(target=func, args=[]).start()
 
     def get_next_ready_node(self, *args, **kwargs):
-        logger.debug("get_next_ready_node: self.shared_objects = %s", self.shared_objects.copy())
+        logger.debug("get_next_ready_node: self.shared_objects = %s", self.shared_objects)
         def pop_objects(object_id_set):
-            logger.debug("pop_objects.start: self.shared_objects = %s", self.shared_objects.copy())
+            logger.debug("pop_objects.start: self.shared_objects = %s", self.shared_objects)
             object_dict = {}
             for object_id in object_id_set:
                 logger.debug("pop_objects: object_id = %s", object_id)
