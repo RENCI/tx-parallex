@@ -7,8 +7,8 @@ import os.path
 import logging
 from tempfile import mkstemp
 import os
-from tx.parallex.dependentqueue import DependentQueue, SubQueue
-from tx.parallex.task import enqueue, work_on, dispatch, EndOfQueue, write_to_disk, read_from_disk
+from tx.parallex.dependentqueue import DependentQueue
+from tx.parallex.task import enqueue, work_on, EndOfQueue, write_to_disk, read_from_disk
 from tx.parallex.python import python_to_spec
 from tx.readable_log import getLogger
 
@@ -58,15 +58,11 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         with Manager() as manager:
             job_queue = DependentQueue(manager, EndOfQueue())
             enqueue(spec, data, job_queue)
-            subqueues = [SubQueue(job_queue) for _ in range(number_of_workers)]
             processes = []
-            for subqueue in subqueues:
-                p = Process(target=work_on, args=[subqueue, system_paths])
+            for _ in range(number_of_workers):
+                p = Process(target=work_on, args=[job_queue, system_paths])
                 p.start()
                 processes.append(p)
-            p = Process(target=dispatch, args=[job_queue, subqueues])
-            p.start()
-            processes.append(p)
             p2 = Process(target=write_to_disk, args=[job_queue, temp_path])
             p2.start()
             processes.append(p2)

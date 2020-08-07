@@ -5,11 +5,14 @@ import os
 
 def getLogger(name, level):
     logger = logging.getLogger(name)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(os.environ.get("LOG_LEVEL", level))
+    if not logger.handlers:
+        logger.propagate = 0
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(process)d - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(os.environ.get("LOG_LEVEL", level))
+        print(f"adding handler to logger {name}")
     return logger
 
 def wrap_line(s):

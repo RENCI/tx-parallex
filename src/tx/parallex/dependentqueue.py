@@ -1,6 +1,7 @@
 from queue import Empty
 from multiprocessing import Manager, Queue
 from uuid import uuid1
+from ctypes import c_bool
 import logging
 from tx.functional.either import Left, Right
 from tx.functional.maybe import Just, Nothing
@@ -29,7 +30,7 @@ class Node:
         return self.o
 
     def __eq__(self, other):
-        return self.o == other.o and self.node_id == other.node_id and self.ret == other.ret and self.depends_on == other.depends_on
+        return isinstance(other, Node) and self.o == other.o and self.node_id == other.node_id and self.ret == other.ret and self.depends_on == other.depends_on
 
     
 class NodeMetadata:
@@ -74,7 +75,7 @@ class NodeMap:
     :type lock: Lock
     :attr output_queue: output of the script
     :type output_queue: Queue[dict[str, any]]
-    :attr end_of_queue: an end_of_queue object that will be put on the ready queue when the NodeMap is closed. 
+    :attr end_of_queue: an end_of_queue object that will be put on the ready queue when the NodeMap is closed. The object must implement the __eq__ method such that every copy of the object is equal to any other copy.
     :type end_of_queue: any
     """
     
@@ -87,11 +88,6 @@ class NodeMap:
         self.lock = manager.Lock()
         self.output_queue = manager.Queue()
         self.end_of_queue = end_of_queue
-
-    def close(self):
-        with self.lock:
-            self.ready_queue.put((Node(self.end_of_queue), {}, {}))
-            self.output_queue.put(Nothing)
 
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
@@ -160,11 +156,15 @@ class NodeMap:
             self.output_queue.put(Just(ret))
             del self.meta[node_id]
             del self.nodes[node_id]
+            logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
+            if len(self.nodes) == 0:
+                self.ready_queue.put((Node(self.end_of_queue), {}, {}))
+                self.output_queue.put(Nothing)
 
     def get_next_ready_node(self, *args, **kwargs):
-        logger.debug("get_next_ready_node: self.shared_objects = %s", self.shared_objects)
+        logger.debug("get_next_ready_node: self.shared_objects = %s", self.shared_objects.copy())
         def pop_objects(object_id_set):
-            logger.debug("pop_objects.start: self.shared_objects = %s", self.shared_objects)
+            logger.debug("pop_objects.start: self.shared_objects = %s", self.shared_objects.copy())
             object_dict = {}
             for object_id in object_id_set:
                 logger.debug("pop_objects: object_id = %s", object_id)
@@ -177,22 +177,28 @@ class NodeMap:
                     del self.shared_objects_reference_count[object_id]
                 else:
                     self.shared_objects_reference_count[object_id] = ided_object_reference_count
-            logger.debug("pop_objects.finish: self.shared_objects = %s", self.shared_objects)
+            logger.debug("pop_objects.finish: self.shared_objects = %s", self.shared_objects.copy())
             return object_dict
                     
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
         node, results, subnode_results = self.ready_queue.get(*args, **kwargs)
+        logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
+        if node.o == self.end_of_queue:
+            self.ready_queue.put((node, results, subnode_results))
         return node, pop_objects(results), pop_objects(subnode_results)
 
     def get_next_output(self):
         return self.output_queue.get()
 
-    def empty(self):
-        with self.lock:
-            return len(self.nodes) == 0
+    # def empty(self):
+    #     with self.lock:
+    #         logger.debug("empty: len(self.nodes) == %s", len(self.nodes))
+    #         return len(self.nodes) == 0
 
         
 class DependentQueue:
+    """The queue maintain a list of tasks. Before any task is added to the list, the queue is in the ready state, when the last task is compleete the queue is in the closed state. In the closed state the queue will always return end_of_queue.
+    """
     def __init__(self, manager, end_of_queue):
         self.node_map = NodeMap(manager, end_of_queue)
 
@@ -211,28 +217,7 @@ class DependentQueue:
     
     def complete(self, node_id, ret, x=Nothing):
         self.node_map.complete_node(node_id, ret, x)
-        if self.node_map.empty():
-            self.node_map.close()
 
 
-class SubQueue:
-    def __init__(self, queue):
-        self.queue = queue
-        self.subqueue = Queue()
-
-    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set(), is_hold=False):
-        return self.queue.put(o, job_id, ret, depends_on, subnode_depends_on, is_hold=is_hold)
-    
-    def put_in_subqueue(self, o):
-        self.subqueue.put(o)
-
-    def get(self, *args, **kwargs):
-        return self.subqueue.get(*args, **kwargs)
-
-    def complete(self, node_id, ret, x=Nothing):
-        self.queue.complete(node_id, ret, x)
-
-    def full(self):
-        return self.subqueue.full()
         
         

@@ -18,7 +18,7 @@ from ctypes import c_int
 import builtins
 from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing, maybe
-from .dependentqueue import DependentQueue, SubQueue
+from .dependentqueue import DependentQueue
 from .utils import inverse_function
 from .python import python_to_spec, EnvStack2
 from .stack import Stack
@@ -180,6 +180,9 @@ class EndOfQueue(AbsTask):
     def __init__(self):
         super().__init__()
 
+    def __eq__(self, other):
+        return isinstance(other, EndOfQueue)
+
         
 def write_to_disk(dqueue, path):
     with open(path, "w") as db:
@@ -199,30 +202,7 @@ def read_from_disk(path):
     return obj
 
         
-def dispatch(job_queue, worker_queues):
-    n = len(worker_queues)
-    while True:
-        jri = job_queue.get()
-        job, results, subnode_results, jid = jri
-        logger.debug(f"dispatching type(job) = %s results = %s subnode_results = %s jid = %s", type(job), results, subnode_results, jid)
-        if isinstance(job, EndOfQueue):
-            for p in worker_queues:
-                p.put_in_subqueue(jri)
-            break
-        else:
-            base = choice(range(n))
-            done = False
-            for off in range(n):
-                i = base + off
-                if not worker_queues[i].full():
-                    worker_queues[i].put_in_subqueue(jri)
-                    done = True
-                    break
-            if not done:
-                worker_queues[base].put_in_subqueue(jri)
-
-    
-def mbind(job_run, params, subnode_results, sub_queue):
+def mbind(job_run, params, subnode_results, queue):
     resultv = {}
     subnode_resultv = {}
     for k, v in params.items():
@@ -242,17 +222,17 @@ def mbind(job_run, params, subnode_results, sub_queue):
                 subnode_resultv[k] = v.value
         else:
             # logger.debug(f"mbind: running {job_run}")
-            ret, resultj = job_run(resultv, subnode_resultv, sub_queue)
+            ret, resultj = job_run(resultv, subnode_resultv, queue)
             if not isinstance(resultj, Either):
                 resultj = Right(resultj)
     return ret, resultj
 
                         
-def work_on(sub_queue, library_paths):
+def work_on(queue, library_paths):
     logger.debug("library_paths = %s", library_paths)
     sys.path.extend(library_paths)
     while True:
-        jri = sub_queue.get()
+        jri = queue.get()
         job, results, subnode_results, jid = jri
         if isinstance(job, EndOfQueue):
             break
@@ -265,7 +245,7 @@ def work_on(sub_queue, library_paths):
             logger.debug("task begin %s %s", type(job), jid)
             try:
                 logger.info("task begin %s", jid)
-                ret, resultj = job.run(results, subnode_results, sub_queue)
+                ret, resultj = job.run(results, subnode_results, queue)
             except Exception as e:
                 resultj = Left((str(e), traceback.format_exc()))
                 ret = {}
@@ -278,7 +258,7 @@ def work_on(sub_queue, library_paths):
             # }))
             logger.debug("task finish %s %s", type(job), jid)
             logger.info(f"task finish %s", jid)
-            sub_queue.complete(jid, ret, Just(resultj))
+            queue.complete(jid, ret, Just(resultj))
     
 
 def depends_on(top, v):

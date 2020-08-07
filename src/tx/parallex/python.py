@@ -13,7 +13,7 @@ import logging
 from importlib import import_module
 import builtins
 from tx.functional.either import Left, Right, Either
-from .dependentqueue import DependentQueue, SubQueue
+from .dependentqueue import DependentQueue
 from .stack import Stack
 from tx.readable_log import getLogger
 
