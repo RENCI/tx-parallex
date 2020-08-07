@@ -15,6 +15,8 @@ from functools import partial
 from copy import deepcopy
 from ctypes import c_int
 import builtins
+from joblib import Parallel, delayed
+import os
 from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing, maybe
 from .dependentqueue import DependentQueue
@@ -25,6 +27,7 @@ import jsonpickle
 from tx.readable_log import format_message, getLogger
 
 logger = getLogger(__name__, logging.INFO)
+nthreads_generator = os.environ.get("NUMBER_THREADS_TASK_GENERATOR", 4)
 
 def substitute_list(results, args):
     return [results[arg] for arg in args if arg in results]
@@ -448,14 +451,14 @@ def arg_spec_to_arg(data, arg):
 
 EnvStack = Stack({})
 
-def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
+def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
     ty = spec.get("type")
     if ty == "let":
         var = spec["var"]
         obj = spec["obj"]
         sub = spec["sub"]
         data2 = {**data, var: arg_spec_to_arg(data, obj)}
-        yield from generate_tasks(sub, data2, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+        generate_tasks(queue, sub, data2, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "map":
         coll_name = spec["coll"]
         var = spec["var"]
@@ -468,10 +471,14 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
             task = DynamicMap(var, coll_spec, subspec, data, subnode_top, ret_prefix)
             dep = {coll_spec}
 #            logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
-            yield task, dep | hold, set(subnode_top.values())
+            enqueue_task(queue, task, dep | hold, set(subnode_top.values()))
         else:
             coll = arg_spec_to_arg(data, coll_name)
-            yield from roundrobin(*(generate_tasks(subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) for i, row in enumerate(coll) if (data2 := {**data, var:row})))
+            def generate_tasks_for_item(i, row):
+                data2 = {**data, var:row}
+                generate_tasks(queue, subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) 
+
+            Parallel(n_jobs=nthreads_generator, prefer="threads")(delayed(generate_tasks_for_item)(i, row) for i, row in enumerate(coll))
     elif ty == "cond":
         cond_name = spec["on"]
         then_spec = spec["then"]
@@ -482,20 +489,20 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
             subnode_top = {name: top[name] for name in subnode_dep}
             task = DynamicGuard(cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix)
             dep = {cond_spec}
-#            logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
-            yield task, dep | hold, set(subnode_top.values())
+            # logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
+            enqueue_task(queue, task, dep | hold, set(subnode_top.values()))
         else:
             coll = arg_spec_to_arg(data, cond_name)
             if coll:
-                yield from generate_tasks(then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+                generate_tasks(queue, then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
             else:
-                yield from generate_tasks(else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+                generate_tasks(queue, else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "top":
         subs = spec["sub"]
         subs_sorted = sort_tasks(top.keys(), subs)
         top = EnvStack(top)
         for sub in subs_sorted:
-            yield from generate_tasks(sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
+            generate_tasks(queue, sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
     elif ty == "python":
 #        logger.debug(f"add task: dependencies = {get_python_task_depends_on(spec)}\ntop = {top}")
         name = spec["name"]
@@ -512,30 +519,31 @@ def generate_tasks(spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
         top[name] = task.task_id
 #        logger.debug(f"add task: add task to top. top = {top}")
 #        logger.debug(f"add task: {task.task_id} depends_on {dependencies}")
-        yield task, set(dependencies.values()) | hold, set()
+        enqueue_task(queue, task, set(dependencies.values()) | hold, set())
     elif ty == "ret":
         obj_name = spec["obj"]
         if "name" in obj_name and obj_name["name"] in top:
             obj_spec = top[obj_name["name"]]
             task = DynamicRet(obj_spec, ret_prefix)
             dep = {obj_spec}
-            yield task, dep | hold, set()
+            enqueue_task(queue, task, dep | hold, set())
         else:
             obj = arg_spec_to_arg(data, obj_name)
-            yield Ret(obj, ret_prefix), hold, set()
+            enqueue_task(queue, Ret(obj, ret_prefix), hold, set())
     else:
         raise RuntimeError(f'unsupported spec type {ty}')
 
 
+def enqueue_task(job_queue, job, dependencies, subnode_dependencies):
+    job_id = job.task_id
+    logger.debug("add task %s %s\ndepends_on = %s\nsubnode_depends_on = %s", type(job), job_id, dependencies, subnode_dependencies)
+    job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
+
 def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
     # logger.debug(f"enqueue: data = {data}")
+    generate_tasks(job_queue, spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold)
 
-    for what in generate_tasks(spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold):
-        job, dependencies, subnode_dependencies = what
-        job_id = job.task_id
-        logger.debug("add task %s %s\ndepends_on = %s\nsubnode_depends_on = %s", type(job), job_id, dependencies, subnode_dependencies)
-        job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
-
+    
 
     
 

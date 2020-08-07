@@ -15,7 +15,7 @@ import builtins
 from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue
 from .stack import Stack
-from tx.readable_log import getLogger
+from tx.readable_log import getLogger, format_message
 
 
 logger = getLogger(__name__, logging.INFO)
@@ -173,7 +173,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
     else:
         return expr, []
 
-    logger.info(f"{ast.dump(expr_eta)} {[ast.dump(assign) for assign in assigns]}")
+    logger.debug(format_message("extract_expressions_to_assignments", ast.dump(expr), (), {"expression": ast.dump(expr_eta), "assignments": [ast.dump(assign) for assign in assigns]}))
     if in_assignment:
 #       logger.debug("in assignment")
         return expr_eta, assigns
