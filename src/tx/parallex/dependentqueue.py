@@ -1,5 +1,5 @@
-from queue import Empty
-from multiprocessing import Manager, Queue, Process
+from queue import Empty, Queue
+from threading import Thread, Lock
 from uuid import uuid1
 from ctypes import c_bool
 import logging
@@ -50,13 +50,13 @@ class NodeMetadata:
     :attr subnode_results: a map from node_id to partial or complete results of the nodes that its subnodes depends on. These object are store in memory. To ignore the result, set dependencies to empty iterable.
     :type subnode_results: dict[str, dict[str, any]]
     """
-    def __init__(self, refs=set(), subnode_refs=set(), depends=0, subnode_depends=0, results=set(), subnode_results=set()):
-        self.refs = refs
-        self.subnode_refs = subnode_refs
+    def __init__(self, refs=None, subnode_refs=None, depends=0, subnode_depends=0, results=None, subnode_results=None):
+        self.refs = refs if refs is not None else set()
+        self.subnode_refs = subnode_refs if subnode_refs is not None else set()
         self.depends = depends
         self.subnode_depends = subnode_depends
-        self.results = results
-        self.subnode_results = subnode_results
+        self.results = results if results is not None else {}
+        self.subnode_results = subnode_results if subnode_results is not None else {}
 
         
 class NodeMap:
@@ -65,10 +65,6 @@ class NodeMap:
     :type nodes: dict[str, Node]
     :attr meta: a map from node_id to its metadata
     :type meta: dict[str, NodeMetadata]
-    :attr shared_objects: a map from object id to object, used to avoid storing multiple copies of returned objects 
-    :type shared_objects: dict[str, any]
-    :attr shared_objects_reference_count: a map from object id to reference count, used to avoid storing multiple copies of returned objects 
-    :type shared_objects_reference_count: dict[str, int]
     :attr ready_queue: a queue of tasks that are ready
     :type ready_queue: Queue[Node]
     :attr lock: global lock
@@ -79,14 +75,12 @@ class NodeMap:
     :type end_of_queue: any
     """
     
-    def __init__(self, manager, end_of_queue):
-        self.meta = manager.dict()
-        self.nodes = manager.dict()
-        self.shared_objects = manager.dict()
-        self.shared_objects_reference_count = manager.dict()
-        self.ready_queue = manager.Queue()
-        self.lock = manager.Lock()
-        self.output_queue = manager.Queue()
+    def __init__(self, end_of_queue):
+        self.meta = {}
+        self.nodes = {}
+        self.ready_queue = Queue()
+        self.lock = Lock()
+        self.output_queue = Queue()
         self.end_of_queue = end_of_queue
 
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
@@ -101,7 +95,9 @@ class NodeMap:
             logger.debug("add_node: %s depends_on %s subnode_depends_on %s", node.node_id, node.depends_on, node.subnode_depends_on)
             for node_id in node.depends_on:
                 meta = self.meta.get(node_id, NodeMetadata())
+                logger.debug(format_message("add_node", "before add %s to refs of %s", (node.node_id, node_id), {"node refs" : meta.refs, "nodes refs" : {k: (id(v.refs), v.refs) for k, v in self.meta.items()}}))
                 meta.refs.add(node.node_id)
+                logger.debug(format_message("add_node", "after %s", (node.node_id,), {"node refs" : meta.refs, "nodes refs" : {k: (id(v.refs), v.refs) for k, v in self.meta.items()}}))
                 self.meta[node_id] = meta
             for node_id in node.subnode_depends_on:
                 meta = self.meta.get(node_id, NodeMetadata())
@@ -114,38 +110,26 @@ class NodeMap:
     def complete_node(self, node_id, ret, result):
         def func():
             with self.lock:
-                logger.debug("complete_node: node_id = %s, ret = %s, result = %s", node_id, ret, result)
+                logger.debug(format_message("complete_node", node_id, (), {"ret": ret, "result": result}))
                 node = self.nodes[node_id]
                 meta = self.meta[node_id]
                 refs = meta.refs
                 subnode_refs = meta.subnode_refs
-                logger.debug("complete_node: refs = %s subnode_refs = %s", refs, subnode_refs)
-
-                reference_count = 0
+                logger.debug(format_message("complete_node", node_id, (), {"refs": refs, "subnode_refs": subnode_refs}))
 
                 for ref in subnode_refs:
                     refmeta = self.meta[ref]
                     refmeta.subnode_depends -= 1
                     if result != Nothing:
-                        refmeta.subnode_results.add(node_id)
-                        reference_count += 1
-                    self.meta[ref] = refmeta
-                    logger.debug("complete_node: subnode ref = %s, refdep = %s, refresults = %s", ref, refmeta.subnode_depends, refmeta.subnode_results)
+                        refmeta.subnode_results[node_id] = result.value
+                    logger.debug(format_message("complete_node", "adding result of %s as param of subnode", (node_id,), {"subnode ref": ref, "remaining deps": refmeta.subnode_depends, "args": refmeta.subnode_results}))
 
                 for ref in refs:
                     refmeta = self.meta[ref]
                     refmeta.depends -= 1
                     if result != Nothing:
-                        refmeta.results.add(node_id)
-                        reference_count += 1
-                    self.meta[ref] = refmeta
+                        refmeta.results[node_id] = result.value
                     logger.debug("complete_node: ref = %s, refdep = %s, refresults = %s", ref, refmeta.depends, refmeta.results)
-
-                if reference_count > 0:
-                    self.shared_objects[node_id] = result.value
-                    self.shared_objects_reference_count[node_id] = reference_count
-
-                logger.debug("complete_node: self.shared_objects = %s", self.shared_objects)
 
                 for ref in subnode_refs | refs:
                     refmeta = self.meta[ref]
@@ -155,39 +139,22 @@ class NodeMap:
 
                 logger.debug("complete_node: putting %s on output_queue", ret)
                 self.output_queue.put(Just(ret))
+                logger.debug("complete_node: deleting %s from self.meta", node_id)
                 del self.meta[node_id]
                 del self.nodes[node_id]
                 logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
                 if len(self.nodes) == 0:
                     self.ready_queue.put((Node(self.end_of_queue), {}, {}))
                     self.output_queue.put(Nothing)
-        Process(target=func, args=[]).start()
+        Thread(target=func).start()
 
     def get_next_ready_node(self, *args, **kwargs):
-        logger.debug("get_next_ready_node: self.shared_objects = %s", self.shared_objects)
-        def pop_objects(object_id_set):
-            logger.debug("pop_objects.start: self.shared_objects = %s", self.shared_objects)
-            object_dict = {}
-            for object_id in object_id_set:
-                logger.debug("pop_objects: object_id = %s", object_id)
-
-                object_dict[object_id] = self.shared_objects[object_id]
-                ided_object_reference_count = self.shared_objects_reference_count[object_id]
-                ided_object_reference_count -= 1
-                if ided_object_reference_count == 0:
-                    del self.shared_objects[object_id]
-                    del self.shared_objects_reference_count[object_id]
-                else:
-                    self.shared_objects_reference_count[object_id] = ided_object_reference_count
-            logger.debug("pop_objects.finish: self.shared_objects = %s", self.shared_objects.copy())
-            return object_dict
-                    
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
         node, results, subnode_results = self.ready_queue.get(*args, **kwargs)
         logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
         if node.o == self.end_of_queue:
             self.ready_queue.put((node, results, subnode_results))
-        return node, pop_objects(results), pop_objects(subnode_results)
+        return node, results, subnode_results
 
     def get_next_output(self):
         return self.output_queue.get()
@@ -201,8 +168,8 @@ class NodeMap:
 class DependentQueue:
     """The queue maintain a list of tasks. Before any task is added to the list, the queue is in the ready state, when the last task is compleete the queue is in the closed state. In the closed state the queue will always return end_of_queue.
     """
-    def __init__(self, manager, end_of_queue):
-        self.node_map = NodeMap(manager, end_of_queue)
+    def __init__(self, end_of_queue):
+        self.node_map = NodeMap(end_of_queue)
 
     def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set(), is_hold=False):
         node = Node(o, node_id=job_id, ret=ret, depends_on=depends_on, subnode_depends_on=subnode_depends_on)

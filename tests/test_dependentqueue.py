@@ -1,4 +1,4 @@
-from multiprocessing import Manager, Process
+from threading import Thread
 from queue import Queue, Empty
 import logging
 from ctypes import c_int
@@ -12,8 +12,8 @@ logger = getLogger(__name__, logging.DEBUG)
 
 
 def test_dep():
-    with Manager() as manager:
-        dq = DependentQueue(manager, None)
+    
+        dq = DependentQueue(None)
 
         id3 = dq.put(3)
         id2 = dq.put(2, depends_on={id3})
@@ -37,12 +37,13 @@ def test_dep():
 def test_eoq():
 
     
-    with Manager() as manager:
-        dq = DependentQueue(manager, 2)
+    
+        dq = DependentQueue(2)
 
-        def dq_get(v):
+        def dq_get():
             logger.debug("before")
-            v.value = dq.get()
+            nonlocal v
+            v = dq.get()
             logger.debug("after")
 
         id3 = dq.put(2)
@@ -51,8 +52,8 @@ def test_eoq():
         n, _, _, f1 = dq.get(block=True)
         logger.debug("next node found")
 
-        v = manager.Value(c_int, 1)
-        p = Process(target=dq_get, args=[v])
+        v = 1
+        p = Thread(target=dq_get)
         logger.debug("start process")
         p.start()
         time.sleep(1)
@@ -61,11 +62,11 @@ def test_eoq():
         dq.complete(f1, {}, Just(6))
         logger.debug("queue completed")
         p.join()
-        assert v.value[0] == 2
+        assert v[0] == 2
 
 def test_eoq_2():
-    with Manager() as manager:
-        dq = DependentQueue(manager, 2)
+
+        dq = DependentQueue(2)
 
         id3 = dq.put(3)
         
@@ -78,8 +79,8 @@ def test_eoq_2():
         assert n == 2
 
 # def test_eoq_3():
-#     with Manager() as manager:
-#         dq = DependentQueue(manager, True)
+#     
+#         dq = DependentQueue(True)
 
 #         n, r, sr, f = dq.get(block=False)
 #         assert n == 2

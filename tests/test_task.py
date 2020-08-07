@@ -18,8 +18,8 @@ from tx.readable_log import getLogger
 logger = getLogger(__name__, logging.INFO)
 
 def test_enqueue():
-    print("test_enqueue")
-    with Manager() as manager:
+
+    
         spec = {
             "type":"map",
             "coll": {
@@ -44,7 +44,7 @@ def test_enqueue():
         data = {
             "inputs": [1, 2, 3]
         }
-        dq = DependentQueue(manager, EndOfQueue())
+        dq = DependentQueue(EndOfQueue())
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
@@ -65,8 +65,8 @@ def test_enqueue():
 
 
 def test_enqueue_dependent():
-    print("test_enqueue_dependent")
-    with Manager() as manager:
+
+    
         spec = {
             "type":"top",
             "sub": [{
@@ -97,7 +97,7 @@ def test_enqueue_dependent():
             }]
         }
         data = {}
-        dq = DependentQueue(manager, EndOfQueue())
+        dq = DependentQueue(EndOfQueue())
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
@@ -123,8 +123,8 @@ def identity(x):
 
 
 def test_let():
-    print("test_let")
-    with Manager() as manager:
+
+    
         spec = {
             "type":"let",
             "var": "y",
@@ -163,8 +163,8 @@ def g(x,y):
     return x+y
 
 def test_start():
-    print("test_start")
-    with Manager() as manager:
+
+    
         spec = {
             "type":"top",
             "sub": [{
@@ -211,8 +211,8 @@ def test_start():
 
 
 def test_map_start():
-    print("test_start")
-    with Manager() as manager:
+
+    
         spec = {
             "type": "map",
             "coll": {
@@ -266,8 +266,8 @@ def test_map_start():
 
 
 def test_cond_then_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         spec = {
             "type": "cond",
             "on": {
@@ -293,8 +293,8 @@ def test_cond_then_start():
 
 
 def test_cond_else_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         spec = {
             "type": "cond",
             "on": {
@@ -326,8 +326,8 @@ def true():
     return True
 
 def test_dynamic_cond_then_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         spec = {
             "type": "top",
             "sub":[{
@@ -363,8 +363,8 @@ def test_dynamic_cond_then_start():
 
 
 def test_dynamic_cond_else_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         spec = {
             "type": "top",
             "sub":[{
@@ -400,8 +400,8 @@ def test_dynamic_cond_else_start():
 
 
 def test_dsl_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tests.test_task.f(x=b)
 b = tests.test_task.f(x=c)
@@ -415,8 +415,8 @@ return a"""
 
 
 def test_dsl_depend_for_to_outer_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 y = 1
 d = [2,3]
@@ -432,8 +432,8 @@ for j in d:
 
 
 def test_dynamic_for_0():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 d = [2,3]
 c = tests.test_task.identity(d)
@@ -448,8 +448,8 @@ for j in c:
 
 
 def test_dynamic_return():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 c = tests.test_task.identity([0])
 return c"""
@@ -461,8 +461,8 @@ return c"""
 
 
 def test_dynamic_for_1():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 c = tests.test_task.identity([0])
 for j in c:
@@ -475,8 +475,8 @@ for j in c:
 
 
 def test_dynamic_for_2():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 d = identity(2)
@@ -491,8 +491,8 @@ for j in c:
 
 
 def test_dynamic_type_error():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 d = identity(2)
@@ -506,8 +506,8 @@ return d+c"""
 
 
 def test_dynamic_type_error_2():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 c = tests.test_task.identity([2])
 for j in c:
@@ -520,22 +520,22 @@ for j in c:
 
 
 def test_circular_dependency():
-    print("test_start")
+    
     with pytest.raises(RuntimeError) as excinfo:
-        with Manager() as manager:
-            py = """
+        
+        py = """
 c = tests.test_task.identity(d)
 d = tests.test_task.identity(c)"""
 
-            data = {}
+        data = {}
         
-            ret = start_python(3, py, data, [], True, None)
+        ret = start_python(3, py, data, [], True, None)
         assert str(excinfo.value) == "RuntimeError: unresolved dependencies or cycle in depedencies graph visited = set()"
 
 
 def test_dynamic_if():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 if identity(True):
@@ -550,8 +550,8 @@ else:
 
         
 def test_dynamic_if_2():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 if identity(False):
@@ -566,8 +566,8 @@ else:
 
         
 def test_dynamic_if_3():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 i = identity(True)
@@ -583,8 +583,8 @@ else:
 
         
 def test_dynamic_if_4():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 i = identity(False)
@@ -600,8 +600,8 @@ else:
 
         
 def test_dynamic_if_5():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 from tests.test_task import identity
 if identity(True):
@@ -617,20 +617,20 @@ if identity(True):
 def test_dynamic_for_10():
     for i in range(20):
         logger.info(f"test start {i} ***************************************")
-        with Manager() as manager:
-            py = """
+        
+        py = """
 for j in tests.test_task.identity([1]):
     return j + 2"""
 
-            data = {}
+        data = {}
         
-            ret = start_python(3, py, data, [], True, None)
-            assert ret == {"0": Right(3)}
+        ret = start_python(3, py, data, [], True, None)
+        assert ret == {"0": Right(3)}
 
 
 def test_data_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tests.test_task.f(x=1)
 return a"""
@@ -642,8 +642,8 @@ return a"""
 
 
 def test_args_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tests.test_task.f(1)
 return a"""
@@ -655,8 +655,8 @@ return a"""
 
 
 def test_dep_args_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tests.test_task.f(1)
 b = tests.test_task.f(a)
@@ -673,8 +673,8 @@ def add(a,b):
 
 
 def test_map_data_start():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 for s in [1,2,3,4,5,6,7]:
     t = tests.test_task.add(a=s, b=1)
@@ -687,8 +687,8 @@ for s in [1,2,3,4,5,6,7]:
 
         
 def test_shared_object_reference_counting():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 s = tx.functional.utils.identity(0.5)
 t = tests.test_task.add(a=s, b=s)
@@ -701,8 +701,8 @@ return t"""
 
         
 def test_system_function():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = all([True])
 return a"""
@@ -714,8 +714,8 @@ return a"""
 
         
 def test_if_exp():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = 1 if True else 0
 return a"""
@@ -727,8 +727,8 @@ return a"""
 
         
 def test_var_in_dict_lit():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tx.functional.utils.identity(1)
 b = {"t": a}
@@ -741,8 +741,8 @@ return b"""
 
         
 def test_var_in_dict_lit_2():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tx.functional.utils.identity({"t": 1})
 b = {"s":0, **a}
@@ -755,8 +755,8 @@ return b"""
 
         
 def test_var_in_list_lit():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tx.functional.utils.identity(1)
 b = [a]
@@ -769,8 +769,8 @@ return b"""
 
         
 def test_var_in_list_lit():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = tx.functional.utils.identity(1)
 b = (a,)
@@ -783,8 +783,8 @@ return b"""
 
         
 def test_subscript():
-    print("test_start")
-    with Manager() as manager:
+    
+    
         py = """
 a = [0,1,2][1]
 return a"""
@@ -796,7 +796,7 @@ return a"""
 
 
 def test_starred_var_in_list_lit():
-    with Manager() as manager:
+    
         py = """
 b = [1]
 return [*b]
@@ -806,7 +806,7 @@ return [*b]
         assert ret == {"": Right([1])}
         
 def test_starred_var_in_dict_lit():
-    with Manager() as manager:
+    
         py = """
 b = {"t":1}
 return {**b}
@@ -816,7 +816,7 @@ return {**b}
         assert ret == {"": Right({"t":1})}
         
 def test_destructure():
-    with Manager() as manager:
+    
         py = """
 a,b,c = [1,2,3]
 return a+b+c
@@ -834,7 +834,7 @@ def return_error():
 
 
 def test_exception_error():
-    with Manager() as manager:
+    
         py = """
 t = tests.test_task.runtime_error()
 return t
@@ -846,7 +846,7 @@ return t
 
         
 def test_return_error():
-    with Manager() as manager:
+    
         py = """
 t = tests.test_task.return_error()
 return t
@@ -858,7 +858,7 @@ return t
 
 
 def test_args_order():
-    with Manager() as manager:
+    
         py = """
 t = tests.test_task.identity(2)
 return t - 1
@@ -870,7 +870,7 @@ return t - 1
 
 
 def test_system_paths():
-    with Manager() as manager:
+    
         py = """
 t = mod.func(1)
 return t
@@ -882,7 +882,7 @@ return t
 
     
 def test_system_paths_2():
-    with Manager() as manager:
+    
         py = """
 from mod import func
 return func(1)
@@ -894,7 +894,7 @@ return func(1)
 
     
 def test_system_paths_3():
-    with Manager() as manager:
+    
         py = """
 from mod import *
 return func(1)
@@ -906,7 +906,7 @@ return func(1)
 
 
 def test_system_paths_4():
-    with Manager() as manager:
+    
         py = """
 return 1
 """
@@ -918,7 +918,7 @@ return 1
 
 
 def test_system_paths_5():
-    with Manager() as manager:
+    
         p = str(pathlib.Path(__file__).parent.absolute() / "user")
         sys.path.append(p)
         py = """
@@ -935,7 +935,7 @@ def test_output_path():
     _, temp_path = mkstemp()
     os.remove(temp_path)
     try:
-        with Manager() as manager:
+        
             py = """
 return 1
 """
@@ -951,7 +951,7 @@ return 1
 def test_output_path_2():
     temp_path = "/tmp/out"
     try:
-        with Manager() as manager:
+        
             py = """
 return 1
 """
@@ -966,7 +966,7 @@ return 1
 def test_output_path_3():
     temp_path = "/tmp/out"
     try:
-        with Manager() as manager:
+        
             py = """
 return 0
 """

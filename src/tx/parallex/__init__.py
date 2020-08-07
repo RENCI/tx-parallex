@@ -1,5 +1,5 @@
 import sys
-from multiprocessing import Manager, Process
+from threading import Thread
 import yaml
 import json
 from jsonschema import validate
@@ -55,15 +55,14 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         temp_path = output_path
 
     try:
-        with Manager() as manager:
-            job_queue = DependentQueue(manager, EndOfQueue())
+            job_queue = DependentQueue(EndOfQueue())
             enqueue(spec, data, job_queue)
             processes = []
             for _ in range(number_of_workers):
-                p = Process(target=work_on, args=[job_queue, system_paths])
+                p = Thread(target=work_on, args=(job_queue, system_paths))
                 p.start()
                 processes.append(p)
-            p2 = Process(target=write_to_disk, args=[job_queue, temp_path])
+            p2 = Thread(target=write_to_disk, args=(job_queue, temp_path))
             p2.start()
             processes.append(p2)
             for p in processes:

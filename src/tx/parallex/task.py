@@ -7,7 +7,6 @@ from importlib import import_module
 from itertools import chain
 from more_itertools import roundrobin
 from autorepr import autorepr, autotext
-from multiprocessing import Manager, Value
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For
 import logging
 import traceback
