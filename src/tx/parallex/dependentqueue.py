@@ -86,6 +86,7 @@ class NodeMap:
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
     def add_node(self, node, is_hold=False):
+        debug.info("add_node: %s", node.node_id)
         with self.lock:
             if node.node_id in self.nodes:
                 raise RuntimeError(f"{node.node_id} is already in the map")
