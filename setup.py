@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
     setuptools.setup(
         name="tx-parallex",
-        version="0.0.68",
+        version="0.0.69",
         license="MIT",
         author="Hao Xu",
         author_email="xuhao@renci.org",

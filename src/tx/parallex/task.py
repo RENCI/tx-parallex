@@ -27,7 +27,6 @@ import jsonpickle
 from tx.readable_log import format_message, getLogger
 
 logger = getLogger(__name__, logging.INFO)
-nthreads_generator = os.environ.get("NUMBER_THREADS_TASK_GENERATOR", 4)
 
 def substitute_list(results, args):
     return [results[arg] for arg in args if arg in results]
@@ -94,7 +93,7 @@ class Hold(AbsTask):
 
 
 class DynamicMap(BaseTask):
-    def __init__(self, var, coll_spec, spec, data, subnode_top, ret_prefix, task_id=None):
+    def __init__(self, var, coll_spec, spec, data, subnode_top, ret_prefix, nthreads_generator, task_id=None):
         super().__init__(task_id=task_id)
         self.var = var
         self.coll_spec = coll_spec
@@ -102,6 +101,7 @@ class DynamicMap(BaseTask):
         self.data = data
         self.subnode_top = subnode_top
         self.ret_prefix = ret_prefix
+        self.nthreads_generator = nthreads_generator
 
     __repr__ = autorepr(["task_id", "var", "coll_spec", "spec", "data", "subnode_top", "ret_prefix"])
     __str__, __unicode__ = autotext("DynamicMap({self.task_id} {self.var} {self.coll_spec} {self.spec} {self.data} {self.subnode_top} {self.ret_prefix})")
@@ -116,14 +116,14 @@ class DynamicMap(BaseTask):
                 "data": results[self.coll_spec]
             },
             "sub": self.spec
-        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
+        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id}, nthreads_generator=self.nthreads_generator)
         queue.complete(hold_id, {}, Nothing)
         logger.debug("DynamicMap.baseRun: remove hold task from queue %s", hold_id)
         return {}, None
 
         
 class DynamicGuard(BaseTask):
-    def __init__(self, cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix, task_id=None):
+    def __init__(self, cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix, nthreads_generator, task_id=None):
         super().__init__(task_id=task_id)
         self.cond_spec = cond_spec
         self.then_spec = then_spec
@@ -131,6 +131,7 @@ class DynamicGuard(BaseTask):
         self.data = data
         self.subnode_top = subnode_top
         self.ret_prefix = ret_prefix
+        self.nthreads_generator = nthreads_generator
 
     __repr__ = autorepr(["task_id", "cond_spec", "then_spec", "else_spec", "data", "subnode_top", "ret_prefix"])
     __str__, __unicode__ = autotext("DynamicCond({self.task_id} {self.cond_spec} {self.then_spec} {self.else_spec} {self.data} {self.subnode_top} {self.ret_prefix})")
@@ -146,7 +147,7 @@ class DynamicGuard(BaseTask):
             },
             "then": self.then_spec,
             "else": self.else_spec
-        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id})
+        }, {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_top.items()}}, queue, top=EnvStack(), ret_prefix=self.ret_prefix, execute_unreachable=True, hold={hold_id}, nthreads_generator=self.nthreads_generator)
         queue.complete(hold_id, {}, Nothing)
         logger.debug("DynamicCond.baseRun: remove hold task from queue %s", hold_id)
         return {}, None
@@ -451,14 +452,14 @@ def arg_spec_to_arg(data, arg):
 
 EnvStack = Stack({})
 
-def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
+def generate_tasks(nthreads_generator, queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set()):
     ty = spec.get("type")
     if ty == "let":
         var = spec["var"]
         obj = spec["obj"]
         sub = spec["sub"]
         data2 = {**data, var: arg_spec_to_arg(data, obj)}
-        generate_tasks(queue, sub, data2, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+        generate_tasks(nthreads_generator, queue, sub, data2, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "map":
         coll_name = spec["coll"]
         var = spec["var"]
@@ -468,7 +469,7 @@ def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set())
             coll_spec = top[coll_name["name"]]
             subnode_dep = get_task_depends_on(top, subspec)
             subnode_top = {name: top[name] for name in subnode_dep}
-            task = DynamicMap(var, coll_spec, subspec, data, subnode_top, ret_prefix)
+            task = DynamicMap(var, coll_spec, subspec, data, subnode_top, ret_prefix, nthreads_generator)
             dep = {coll_spec}
 #            logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
             enqueue_task(queue, task, dep | hold, set(subnode_top.values()))
@@ -476,7 +477,7 @@ def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set())
             coll = arg_spec_to_arg(data, coll_name)
             def generate_tasks_for_item(i, row):
                 data2 = {**data, var:row}
-                generate_tasks(queue, subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) 
+                generate_tasks(nthreads_generator, queue, subspec, data2, top=EnvStack(top), ret_prefix=ret_prefix + [i], hold=hold) 
 
             Parallel()(delayed(generate_tasks_for_item)(i, row) for i, row in enumerate(coll))
     elif ty == "cond":
@@ -487,22 +488,22 @@ def generate_tasks(queue, spec, data, top=EnvStack(), ret_prefix=[], hold=set())
             cond_spec = top[cond_name["name"]]
             subnode_dep = get_task_depends_on(top, spec)
             subnode_top = {name: top[name] for name in subnode_dep}
-            task = DynamicGuard(cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix)
+            task = DynamicGuard(cond_spec, then_spec, else_spec, data, subnode_top, ret_prefix, nthreads_generator)
             dep = {cond_spec}
             # logger.debug(f"add task: {task.task_id} depends_on {dep} : {subnode_dep}")
             enqueue_task(queue, task, dep | hold, set(subnode_top.values()))
         else:
             coll = arg_spec_to_arg(data, cond_name)
             if coll:
-                generate_tasks(queue, then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+                generate_tasks(nthreads_generator, queue, then_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
             else:
-                generate_tasks(queue, else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
+                generate_tasks(nthreads_generator, queue, else_spec, data, top=EnvStack(top), ret_prefix=ret_prefix, hold=hold)
     elif ty == "top":
         subs = spec["sub"]
         subs_sorted = sort_tasks(top.keys(), subs)
         top = EnvStack(top)
         for sub in subs_sorted:
-            generate_tasks(queue, sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
+            generate_tasks(nthreads_generator, queue, sub, data, top=top, ret_prefix=ret_prefix, hold=hold)
     elif ty == "python":
 #        logger.debug(f"add task: dependencies = {get_python_task_depends_on(spec)}\ntop = {top}")
         name = spec["name"]
@@ -539,10 +540,10 @@ def enqueue_task(job_queue, job, dependencies, subnode_dependencies):
     logger.debug("add task %s %s\ndepends_on = %s\nsubnode_depends_on = %s", type(job), job_id, dependencies, subnode_dependencies)
     job_queue.put(job, job_id=job_id, depends_on=dependencies, subnode_depends_on=subnode_dependencies)
 
-def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set()):
+def enqueue(spec, data, job_queue, top=EnvStack(), ret_prefix=[], execute_unreachable=False, hold=set(), nthreads_generator=4):
     # logger.debug(f"enqueue: data = {data}")
     with parallel_backend("threading", n_jobs=nthreads_generator):
-        generate_tasks(job_queue, spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold)
+        generate_tasks(nthreads_generator, job_queue, spec if execute_unreachable else remove_unreachable_tasks(spec), data, top=top, ret_prefix=ret_prefix, hold=hold)
 
     
 

@@ -49,15 +49,18 @@ def test_enqueue():
         enqueue(spec, data, dq, execute_unreachable=True)
 
         n, r, sr, f = dq.get()
-        assert n.kwargs == {"x":1}
+        assert "x" in n.kwargs
+        assert n.kwargs["x"] in data["inputs"]
         assert r == {}
         dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get()
-        assert n.kwargs == {"x":2}
+        assert "x" in n.kwargs
+        assert n.kwargs["x"] in data["inputs"]
         assert r == {}
         dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get()
-        assert n.kwargs == {"x":3}
+        assert "x" in n.kwargs
+        assert n.kwargs["x"] in data["inputs"]
         dq.complete(f, {}, Just(6))
         n, r, sr, f = dq.get()
         print(n)
