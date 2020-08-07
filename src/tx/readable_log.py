@@ -12,7 +12,6 @@ def getLogger(name, level):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(os.environ.get("LOG_LEVEL", level))
-        print(f"adding handler to logger {name}")
     return logger
 
 def wrap_line(s):
