@@ -57,6 +57,16 @@ class NodeMetadata:
         self.subnode_depends = subnode_depends
         self.results = results if results is not None else {}
         self.subnode_results = subnode_results if subnode_results is not None else {}
+        self.lock = Lock()
+
+    def decrement_depends(self):
+        with self.lock:
+            self.depends -= 1
+            
+    def decrement_subnode_depends(self):
+        with self.lock:
+            self.subnode_depends -= 1
+
 
         
 class NodeMap:
@@ -96,9 +106,9 @@ class NodeMap:
             logger.debug("add_node: %s depends_on %s subnode_depends_on %s", node.node_id, node.depends_on, node.subnode_depends_on)
             for node_id in node.depends_on:
                 meta = self.meta.get(node_id, NodeMetadata())
-                logger.debug(format_message("add_node", "before add %s to refs of %s", (node.node_id, node_id), {"node refs" : meta.refs, "nodes refs" : {k: (id(v.refs), v.refs) for k, v in self.meta.items()}}))
+                logger.debug(format_message("add_node", "before add %s to refs of %s", (node.node_id, node_id), {"node refs" : meta.refs}))
                 meta.refs.add(node.node_id)
-                logger.debug(format_message("add_node", "after %s", (node.node_id,), {"node refs" : meta.refs, "nodes refs" : {k: (id(v.refs), v.refs) for k, v in self.meta.items()}}))
+                logger.debug(format_message("add_node", "after %s", (node.node_id,), {"node refs" : meta.refs}))
                 self.meta[node_id] = meta
             for node_id in node.subnode_depends_on:
                 meta = self.meta.get(node_id, NodeMetadata())
@@ -109,45 +119,43 @@ class NodeMap:
 
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id, ret, result):
-        def func():
-            with self.lock:
-                logger.debug(format_message("complete_node", node_id, (), {"ret": ret, "result": result}))
-                node = self.nodes[node_id]
-                meta = self.meta[node_id]
-                refs = meta.refs
-                subnode_refs = meta.subnode_refs
-                logger.debug(format_message("complete_node", node_id, (), {"refs": refs, "subnode_refs": subnode_refs}))
+        logger.debug(format_message("complete_node", node_id, (), {"ret": ret, "result": result}))
+        node = self.nodes[node_id]
+        meta = self.meta[node_id]
+        refs = meta.refs
+        subnode_refs = meta.subnode_refs
+        logger.debug(format_message("complete_node", node_id, (), {"refs": refs, "subnode_refs": subnode_refs}))
 
-                for ref in subnode_refs:
-                    refmeta = self.meta[ref]
-                    refmeta.subnode_depends -= 1
-                    if result != Nothing:
-                        refmeta.subnode_results[node_id] = result.value
-                    logger.debug(format_message("complete_node", "adding result of %s as param of subnode", (node_id,), {"subnode ref": ref, "remaining deps": refmeta.subnode_depends, "args": refmeta.subnode_results}))
+        for ref in subnode_refs:
+            refmeta = self.meta[ref]
+            if result != Nothing:
+                refmeta.subnode_results[node_id] = result.value
+            refmeta.decrement_subnode_depends()
 
-                for ref in refs:
-                    refmeta = self.meta[ref]
-                    refmeta.depends -= 1
-                    if result != Nothing:
-                        refmeta.results[node_id] = result.value
-                    logger.debug("complete_node: ref = %s, refdep = %s, refresults = %s", ref, refmeta.depends, refmeta.results)
+            logger.debug(format_message("complete_node", "adding result of %s as param of subnode", (node_id,), {"subnode ref": ref, "remaining deps": refmeta.subnode_depends, "args": refmeta.subnode_results}))
 
-                for ref in subnode_refs | refs:
-                    refmeta = self.meta[ref]
-                    if refmeta.depends == 0 and refmeta.subnode_depends == 0:
-                        task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
-                        self.ready_queue.put(task)
+        for ref in refs:
+            refmeta = self.meta[ref]
+            if result != Nothing:
+                refmeta.results[node_id] = result.value
+            refmeta.decrement_depends()
+            logger.debug("complete_node: ref = %s, refdep = %s, refresults = %s", ref, refmeta.depends, refmeta.results)
 
-                logger.debug("complete_node: putting %s on output_queue", ret)
-                self.output_queue.put(Just(ret))
-                logger.debug("complete_node: deleting %s from self.meta", node_id)
-                del self.meta[node_id]
-                del self.nodes[node_id]
-                logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
-                if len(self.nodes) == 0:
-                    self.ready_queue.put((Node(self.end_of_queue), {}, {}))
-                    self.output_queue.put(Nothing)
-        Thread(target=func).start()
+        for ref in subnode_refs | refs:
+            refmeta = self.meta[ref]
+            if refmeta.depends == 0 and refmeta.subnode_depends == 0:
+                task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
+                self.ready_queue.put(task)
+
+        logger.debug("complete_node: putting %s on output_queue", ret)
+        self.output_queue.put(Just(ret))
+        logger.debug("complete_node: deleting %s from self.meta", node_id)
+        del self.meta[node_id]
+        del self.nodes[node_id]
+        logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
+        if len(self.nodes) == 0:
+            self.ready_queue.put((Node(self.end_of_queue), {}, {}))
+            self.output_queue.put(Nothing)
 
     def get_next_ready_node(self, *args, **kwargs):
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
