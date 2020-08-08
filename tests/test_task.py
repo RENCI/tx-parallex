@@ -19,6 +19,7 @@ logger = getLogger(__name__, logging.INFO)
 
 def test_enqueue():
 
+    with Manager() as manager:
     
         spec = {
             "type":"map",
@@ -44,7 +45,7 @@ def test_enqueue():
         data = {
             "inputs": [1, 2, 3]
         }
-        dq = DependentQueue(EndOfQueue())
+        dq = DependentQueue(manager, EndOfQueue())
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
@@ -69,6 +70,7 @@ def test_enqueue():
 
 def test_enqueue_dependent():
 
+    with Manager() as manager:
     
         spec = {
             "type":"top",
@@ -100,7 +102,7 @@ def test_enqueue_dependent():
             }]
         }
         data = {}
-        dq = DependentQueue(EndOfQueue())
+        dq = DependentQueue(manager, EndOfQueue())
 
         enqueue(spec, data, dq, execute_unreachable=True)
 
