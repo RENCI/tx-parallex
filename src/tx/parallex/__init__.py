@@ -58,7 +58,7 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         with Manager() as manager:
 
             job_queue = DependentQueue(manager, EndOfQueue())
-            enqueue(spec, data, job_queue, nthreads_generator=number_of_workers)
+            enqueue(spec, data, job_queue)
             processes = []
             for _ in range(number_of_workers):
                 p = Process(target=work_on, args=(job_queue, system_paths))

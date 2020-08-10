@@ -173,7 +173,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
     else:
         return expr, []
 
-    logger.debug(format_message("extract_expressions_to_assignments", ast.dump(expr), (), {"expression": ast.dump(expr_eta), "assignments": [ast.dump(assign) for assign in assigns]}))
+    logger.debug(format_message("extract_expressions_to_assignments", lambda: ast.dump(expr), {"expression": lambda: ast.dump(expr_eta), "assignments": lambda: [ast.dump(assign) for assign in assigns]}))
     if in_assignment:
 #       logger.debug("in assignment")
         return expr_eta, assigns

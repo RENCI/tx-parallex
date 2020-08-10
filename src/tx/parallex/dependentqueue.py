@@ -6,6 +6,7 @@ import logging
 from tx.functional.either import Left, Right
 from tx.functional.maybe import Just, Nothing
 from tx.readable_log import format_message, getLogger
+from contextlib import contextmanager
 
 logger = getLogger(__name__, logging.INFO)
 
@@ -64,6 +65,17 @@ class NodeMetadata:
     def decrement_subnode_depends(self):
         self.subnode_depends -= 1
 
+    def set_depends(self, depends):
+        self.depends = depends
+
+    def set_subnode_depends(self, subnode_depends):
+        self.subnode_depends = subnode_depends
+
+    def add_ref(self, ref):
+        self.refs.add(ref)
+
+    def add_subnode_ref(self, subnode_ref):
+        self.subnode_refs.add(subnode_ref)
 
         
 class NodeMap:
@@ -92,46 +104,61 @@ class NodeMap:
         self.end_of_queue = end_of_queue
         self.manager = manager
 
+    def get_node_lock(self, node_id):
+        with self.lock:
+            lock = self.node_lock.get(node_id)
+            if lock is None:
+                lock = self.node_lock[node_id] = self.manager.Lock()
+            else:
+                lock = self.node_lock[node_id]
+            return lock
+
+    @contextmanager
+    def node_metadata(self, node_id):
+        with self.get_node_lock(node_id):
+            meta = self.meta.get(node_id, NodeMetadata())
+            yield meta
+            self.meta[node_id] = meta
+    
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
     def add_node(self, node, is_hold=False):
-        with self.lock:
-            if node.node_id in self.node_lock:
+        with self.get_node_lock(node.node_id):
+            if node.node_id in self.nodes:
                 raise RuntimeError(f"{node.node_id} is already in the map")
-            self.node_lock[node.node_id] = self.manager.Lock()
             self.nodes[node.node_id] = node
-            self.meta[node.node_id] = NodeMetadata(depends=len(node.depends_on), subnode_depends=len(node.subnode_depends_on))
+
+        with self.node_metadata(node.node_id) as meta:
+            meta.set_depends(len(node.depends_on))
+            meta.set_subnode_depends(len(node.subnode_depends_on))
 
         logger.info("add_node: %s", node.node_id)
         logger.debug("add_node: %s depends_on %s subnode_depends_on %s", node.node_id, node.depends_on, node.subnode_depends_on)
         for node_id in node.depends_on:
-            with self.node_lock[node_id]:
-                meta = self.meta.get(node_id, NodeMetadata())
-                logger.debug(format_message("add_node", "before add %s to refs of %s", (node.node_id, node_id), {"node refs" : meta.refs}))
-                meta.refs.add(node.node_id)
-                logger.debug(format_message("add_node", "after %s", (node.node_id,), {"node refs" : meta.refs}))
-                self.meta[node_id] = meta
+            with self.node_metadata(node_id) as meta:
+                meta.add_ref(node.node_id)
+                logger.debug(format_message("add_node", lambda: f"add {node.node_id} to refs of {node_id}", lambda: vars(meta)))
+
         for node_id in node.subnode_depends_on:
-            with self.node_lock[node_id]:
-                meta = self.meta.get(node_id, NodeMetadata())
-                meta.subnode_refs.add(node.node_id)
-                self.meta[node_id] = meta
+            with self.node_metadata(node_id) as meta:
+                meta.add_subnode_ref(node.node_id)
+                logger.debug(format_message("add_node", lambda: f"add {node.node_id} to subnode refs of {node_id}", lambda: vars(meta)))
+
         if not is_hold and len(node.depends_on) == 0:
             self.ready_queue.put((node, {}, {}))
 
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id, ret, result):
-        logger.debug(format_message("complete_node", node_id, (), {"ret": ret, "result": result}))
+        logger.debug(format_message("complete_node", node_id, {"ret": ret, "result": result}))
         
         node = self.nodes[node_id]
         meta = self.meta[node_id]
         refs = meta.refs
         subnode_refs = meta.subnode_refs
-        logger.debug(format_message("complete_node", node_id, (), {"refs": refs, "subnode_refs": subnode_refs}))
+        logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
         for ref in subnode_refs | refs:
-            with self.node_lock[ref]:
-                refmeta = self.meta[ref]
+            with self.node_metadata(ref) as refmeta:
                 if ref in subnode_refs:
                     if result != Nothing:
                         refmeta.subnode_results[node_id] = result.value
@@ -144,8 +171,6 @@ class NodeMap:
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     self.ready_queue.put(task)
-                else:
-                    self.meta[ref] = refmeta
 
         logger.debug("complete_node: putting %s on output_queue", ret)
         self.output_queue.put(Just(ret))

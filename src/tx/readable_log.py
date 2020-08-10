@@ -18,17 +18,19 @@ def wrap_line(s):
     return "\n".join(wrap(s, 80))
 
 
+def to_val(a):
+    return a() if callable(a) else a
+
 class format_message:
-    def __init__(self, title, description, args, obj):
+    def __init__(self, title, description, obj):
         self.title = title
         self.description = description
-        self.args = args
         self.obj = obj
         
     def __str__(self):
         table_data = [
-            ["message", wrap_line(self.description % self.args)]
-        ] + [[wrap_line(str(k)), wrap_line(str(v))] for k, v in self.obj.items()]
+            ["message", wrap_line(str(to_val(self.description)))]
+        ] + [[wrap_line(str(k)), wrap_line(str(to_val(v)))] for k, v in to_val(self.obj).items()]
         
-        table = AsciiTable(table_data, self.title)
+        table = AsciiTable(table_data, str(to_val(self.title)))
         return f"\n{table.table}"
