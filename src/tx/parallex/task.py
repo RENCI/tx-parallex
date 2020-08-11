@@ -226,7 +226,7 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
                 return {}, sub_result
             ret.update(sub_ret)
             data = {**data, **sub_result.value}
-        return ret, {name: data[name] for name in spec.names}
+        return ret, Right({name: data[name] for name in spec.names})
     elif isinstance(spec, PythonSpec):
         try:
             mod = import_module(spec.mod) if spec.mod != "" else builtins
