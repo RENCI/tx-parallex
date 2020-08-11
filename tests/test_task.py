@@ -49,7 +49,7 @@ def test_enqueue():
             "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
-        
+        dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
 
@@ -107,7 +107,7 @@ def test_enqueue_dependent():
         }
         data = {}
         dq = DependentQueue(manager, EndOfQueue())
-        
+        dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True)
 
@@ -249,7 +249,7 @@ def test_level_0():
             "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
-        
+        dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=0)
 
@@ -292,7 +292,7 @@ def test_level_1():
             "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
-        
+        dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
 

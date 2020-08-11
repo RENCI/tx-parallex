@@ -32,6 +32,7 @@ logger = getLogger(__name__, logging.INFO)
 def work_on(queue : DependentQueue, library_paths : List[str]) -> None:
     logger.debug("library_paths = %s", library_paths)
     sys.path.extend(library_paths)
+    queue.init_thread()
     while True:
         jri = queue.get()
         job, results, subnode_results, jid = jri
