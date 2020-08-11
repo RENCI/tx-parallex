@@ -9,6 +9,8 @@ from tx.readable_log import format_message, getLogger
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import List, Any, Dict, Tuple, Callable, Set, Optional
+from ctypes import c_int
+from brain_plasma import Brain
 
 
 logger = getLogger(__name__, logging.INFO)
@@ -55,7 +57,64 @@ class NodeMetadata:
     results: Dict[str, Either] = field(default_factory=dict)
     subnode_results: Dict[str, Either] = field(default_factory=dict)
 
+
+def jsonify(o):
+    if isinstance(o, Left):
+        return {
+            "left": o.value
+        }
+    elif isinstance(o, Right):
+        return {
+            "right": o.value
+        }
+    else:
+        return o
+
+def unjsonify(o):
+    if isinstance(o, dict) and "left" in o:
+        return Left(o["left"])
+    elif isinstance(o, dict) and "right" in o:
+        return Right(o["right"])
+    else:
+        return o
+    
+class ObjectStore:
+    def __init__(self, manager):
+        self.manager = manager
+        self.shared_ref_dict = manager.dict()
+        self.shared_ref_lock_dict = manager.dict()
+        self.brain = Brain()
         
+    def put(self, o) :
+        
+        oid = str(uuid1())
+        self.brain[oid] = jsonify(o)
+        logger.debug(format_message("ObjectStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
+        self.shared_ref_dict[oid] = 0
+        self.shared_ref_lock_dict[oid] = self.manager.Lock()
+        return oid
+
+    def increment_ref(self, oid):
+        with self.shared_ref_lock_dict[oid]:
+            self.shared_ref_dict[oid] += 1
+        
+    def decrement_ref(self, oid):
+        with self.shared_ref_lock_dict[oid]:
+            val = self.shared_ref_dict[oid]
+            val -= 1
+            
+            if val == 0:
+                del self.brain[oid]
+                del self.shared_ref_dict[oid]
+                del self.shared_ref_lock_dict[oid]
+            else:
+                self.shared_ref_dict[oid] = val
+                
+    def get(self, oid):
+        logger.debug(format_message("ObjectStore.get", "getting object from shared memory store", {"oid": oid}))
+        return unjsonify(self.brain[oid])
+
+    
 class NodeMap:
     """
     :attr nodes:
@@ -81,6 +140,7 @@ class NodeMap:
         self.output_queue = manager.Queue()
         self.end_of_queue = end_of_queue
         self.manager = manager
+        self.object_store = ObjectStore(manager)
 
     def get_node_lock(self, node_id):
         with self.lock:
@@ -135,21 +195,34 @@ class NodeMap:
         subnode_refs = meta.subnode_refs
         logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
-        def extract(result, name):
-            return result.bind(lambda x: x[name])
-            
+        # put results in object store
+        if isinstance(result, Left):
+            oid = self.object_store.put(result)
+            result_oid = lambda name: oid
+        else:
+            result_dict = result.value
+            result_oid_dict = {}
+            for k, v in result_dict.items():
+                void = self.object_store.put(v)
+                result_oid_dict[k] = void
+            result_oid = lambda x: result_oid_dict[x]
+        
         for ref in subnode_refs | refs:
             with self.node_metadata(ref) as refmeta:
                 refnode = self.nodes[ref]
                 if ref in subnode_refs:
                     refnode_subnode_depends_on = refnode.subnode_depends_on[node_id]
                     for name in refnode_subnode_depends_on:
-                        refmeta.subnode_results[name] = extract(result, name)
+                        oid = result_oid(name)
+                        refmeta.subnode_results[name] = oid
+                        self.object_store.increment_ref(oid)
                     refmeta.subnode_depends -= 1
                 if ref in refs:
                     refnode_depends_on = refnode.depends_on[node_id]
                     for name in refnode_depends_on:
-                        refmeta.results[name] = extract(result, name)
+                        oid = result_oid(name)
+                        refmeta.results[name] = oid
+                        self.object_store.increment_ref(oid)
                     refmeta.depends -= 1
 
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
@@ -205,9 +278,17 @@ class DependentQueue:
         return node.node_id
 
     def get(self, *args, **kwargs):
+        def retrieve_object(oid):
+            obj = self.node_map.object_store.get(oid)
+            self.node_map.object_store.decrement_ref(oid)
+            return obj
+        
+        def retrieve_objects(result_oid_dict):
+            return {k: retrieve_object(v) for k,v in result_oid_dict.items()}
+            
         node, results, subnode_results = self.node_map.get_next_ready_node(*args, **kwargs)
         logger.debug(f"DependentQueue.get: node = %s, results = %s, subnode_results = %s", node, results, subnode_results)
-        return node.get(), results, subnode_results, node.node_id
+        return node.get(), retrieve_objects(results), retrieve_objects(subnode_results), node.node_id
         
     def get_next_output(self):
         return self.node_map.get_next_output()
