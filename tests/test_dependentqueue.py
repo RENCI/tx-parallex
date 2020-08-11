@@ -4,6 +4,7 @@ import logging
 from ctypes import c_int
 import time
 import pytest
+from tx.functional.either import Left, Right
 from tx.functional.maybe import Just
 from tx.parallex.dependentqueue import DependentQueue, Node
 from tx.readable_log import getLogger
@@ -16,23 +17,55 @@ def test_dep():
         dq = DependentQueue(manager, None)
 
         id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={id3})
-        id1 = dq.put(1, depends_on={id3, id2})
+        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
         
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Just(6))
+        dq.complete(f1, {}, Right({"a": 6}))
         n, r, sr, f2 = dq.get(block=True)
         assert n == 2
-        assert r == {f1: 6}
-        dq.complete(f2, {}, Just(5))
+        assert r == {"a": 6}
+        dq.complete(f2, {}, Right({"b": 5}))
         n, r, sr, f = dq.get(block=True)
         assert n == 1
-        assert r == {f2: 5, f1: 6}
-        dq.complete(f, {}, Just(4))
+        assert r == {"b": 5, "a": 6}
+        dq.complete(f, {}, Right({"c": 4}))
         n, r, sr, f = dq.get(block=True)
         assert n is None
+
+def test_dep_error():
+    with Manager() as manager:
+        dq = DependentQueue(manager, None)
+
+        id3 = dq.put(3)
+        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
+        
+        n, r, sr, f1 = dq.get(block=True)
+        assert n == 3
+        assert r == {}
+        dq.complete(f1, {}, Right({"a": Left("a")}))
+        n, r, sr, f2 = dq.get(block=True)
+        assert n == 2
+        assert r == {"a": Left("a")}
+
+def test_dep_error():
+    with Manager() as manager:
+        dq = DependentQueue(manager, None)
+
+        id3 = dq.put(3)
+        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
+        
+        n, r, sr, f1 = dq.get(block=True)
+        assert n == 3
+        assert r == {}
+        dq.complete(f1, {}, Left("a"))
+        n, r, sr, f2 = dq.get(block=True)
+        assert n == 2
+        assert r == {"a": Left("a")}
 
 def test_eoq():
 

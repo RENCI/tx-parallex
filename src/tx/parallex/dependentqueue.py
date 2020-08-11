@@ -3,43 +3,40 @@ from threading import Thread, Lock
 from uuid import uuid1
 from ctypes import c_bool
 import logging
-from tx.functional.either import Left, Right
+from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing
 from tx.readable_log import format_message, getLogger
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import List, Any, Dict, Tuple, Callable, Set, Optional
+
 
 logger = getLogger(__name__, logging.INFO)
 
+@dataclass
 class Node:
-    def __init__(self, o, node_id=None, ret=None, depends_on=set(), subnode_depends_on=set()):
-        """
-        :param o: The task object
-        :param node_id: The node_id, if None, one will be generated
-        :type node_id: maybe[str]
-        :param depends_on: a set of node_ids that it depends
-        :type depends_on: set[str]
-        :param subnode_depends_on: a set of node_ids that it depends
-        :type subnode_depends_on: set[str]
-        """
-        self.o = o
-        self.node_id = node_id if node_id is not None else str(uuid1())
-        self.ret = ret
-        self.depends_on = depends_on
-        self.subnode_depends_on = subnode_depends_on
+    """
+    :param o: The task object
+    :param node_id: The node_id, if None, one will be generated
+    :param depends_on: a dict from node_ids that it depends to variable names
+    :param subnode_depends_on: a dict from node_ids that it depends to variable names
+    """
+    o: Any
+    node_id: str
+    depends_on: Dict[str, Set[str]] = field(default_factory=dict)
+    subnode_depends_on: Dict[str, Set[str]] = field(default_factory=dict)
 
     def get(self):
         return self.o
 
-    def __eq__(self, other):
-        return isinstance(other, Node) and self.o == other.o and self.node_id == other.node_id and self.ret == other.ret and self.depends_on == other.depends_on
-
     
+@dataclass
 class NodeMetadata:
     """
-    :attr refs: a map from node_id to node_ids that depends on it
-    :type refs: dict[str, iterable[str]]
-    :attr subnode_refs: a map from node_id to node_ids whose subnode depends on it
-    :type subnode_refs: dict[str, iterable[str]]
+    :attr refs: a set of node_ids that depends on it
+    :type refs: Set[str]
+    :attr subnode_refs: a set of node_ids whose subnode depends on it
+    :type subnode_refs: Set[str]
     :attr depends: a map from node_id to a dict where the key is node_id that it depends on and the value is an iterable that returns a list of keys
     :type depends: dict[str, iterable[str]]
     :attr subnode_depends: a map from node_id to a dict where the key is node_id that its subnodes depends on and the value is an iterable that returns a list of keys
@@ -51,31 +48,12 @@ class NodeMetadata:
     :attr subnode_results: a map from node_id to partial or complete results of the nodes that its subnodes depends on. These object are store in memory. To ignore the result, set dependencies to empty iterable.
     :type subnode_results: dict[str, dict[str, any]]
     """
-    def __init__(self, refs=None, subnode_refs=None, depends=0, subnode_depends=0, results=None, subnode_results=None):
-        self.refs = refs if refs is not None else set()
-        self.subnode_refs = subnode_refs if subnode_refs is not None else set()
-        self.depends = depends
-        self.subnode_depends = subnode_depends
-        self.results = results if results is not None else {}
-        self.subnode_results = subnode_results if subnode_results is not None else {}
-
-    def decrement_depends(self):
-        self.depends -= 1
-            
-    def decrement_subnode_depends(self):
-        self.subnode_depends -= 1
-
-    def set_depends(self, depends):
-        self.depends = depends
-
-    def set_subnode_depends(self, subnode_depends):
-        self.subnode_depends = subnode_depends
-
-    def add_ref(self, ref):
-        self.refs.add(ref)
-
-    def add_subnode_ref(self, subnode_ref):
-        self.subnode_refs.add(subnode_ref)
+    refs: Set[str] = field(default_factory=set)
+    subnode_refs: Set[str] = field(default_factory=set)
+    depends: int = 0
+    subnode_depends: int = 0
+    results: Dict[str, Either] = field(default_factory=dict)
+    subnode_results: Dict[str, Either] = field(default_factory=dict)
 
         
 class NodeMap:
@@ -122,33 +100,33 @@ class NodeMap:
     
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
-    def add_node(self, node, is_hold=False):
+    def add_node(self, node: Node, is_hold: bool =False):
         with self.get_node_lock(node.node_id):
             if node.node_id in self.nodes:
                 raise RuntimeError(f"{node.node_id} is already in the map")
             self.nodes[node.node_id] = node
 
         with self.node_metadata(node.node_id) as meta:
-            meta.set_depends(len(node.depends_on))
-            meta.set_subnode_depends(len(node.subnode_depends_on))
+            meta.depends = len(node.depends_on)
+            meta.subnode_depends = len(node.subnode_depends_on)
 
         logger.info("add_node: %s", node.node_id)
         logger.debug("add_node: %s depends_on %s subnode_depends_on %s", node.node_id, node.depends_on, node.subnode_depends_on)
-        for node_id in node.depends_on:
+        for node_id in node.depends_on.keys():
             with self.node_metadata(node_id) as meta:
-                meta.add_ref(node.node_id)
+                meta.refs.add(node.node_id)
                 logger.debug(format_message("add_node", lambda: f"add {node.node_id} to refs of {node_id}", lambda: vars(meta)))
 
-        for node_id in node.subnode_depends_on:
+        for node_id in node.subnode_depends_on.keys():
             with self.node_metadata(node_id) as meta:
-                meta.add_subnode_ref(node.node_id)
+                meta.subnode_refs.add(node.node_id)
                 logger.debug(format_message("add_node", lambda: f"add {node.node_id} to subnode refs of {node_id}", lambda: vars(meta)))
 
         if not is_hold and len(node.depends_on) == 0:
             self.ready_queue.put((node, {}, {}))
 
     # :param result: the result of the function, if it is Nothing then no result is returned
-    def complete_node(self, node_id, ret, result):
+    def complete_node(self, node_id: str, ret: Dict[str, Any], result: Either):
         logger.debug(format_message("complete_node", node_id, {"ret": ret, "result": result}))
         
         node = self.nodes[node_id]
@@ -157,16 +135,22 @@ class NodeMap:
         subnode_refs = meta.subnode_refs
         logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
+        def extract(result, name):
+            return result.bind(lambda x: x[name])
+            
         for ref in subnode_refs | refs:
             with self.node_metadata(ref) as refmeta:
+                refnode = self.nodes[ref]
                 if ref in subnode_refs:
-                    if result != Nothing:
-                        refmeta.subnode_results[node_id] = result.value
-                    refmeta.decrement_subnode_depends()
+                    refnode_subnode_depends_on = refnode.subnode_depends_on[node_id]
+                    for name in refnode_subnode_depends_on:
+                        refmeta.subnode_results[name] = extract(result, name)
+                    refmeta.subnode_depends -= 1
                 if ref in refs:
-                    if result != Nothing:
-                        refmeta.results[node_id] = result.value
-                    refmeta.decrement_depends()
+                    refnode_depends_on = refnode.depends_on[node_id]
+                    for name in refnode_depends_on:
+                        refmeta.results[name] = extract(result, name)
+                    refmeta.depends -= 1
 
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
@@ -181,7 +165,7 @@ class NodeMap:
             del self.nodes[node_id]
             logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
             if len(self.nodes) == 0:
-                self.ready_queue.put((Node(self.end_of_queue), {}, {}))
+                self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
                 self.output_queue.put(Nothing)
 
     def get_next_ready_node(self, *args, **kwargs):
@@ -207,8 +191,10 @@ class DependentQueue:
     def __init__(self, manager, end_of_queue):
         self.node_map = NodeMap(manager, end_of_queue)
 
-    def put(self, o, job_id=None, ret=[], depends_on=set(), subnode_depends_on=set(), is_hold=False):
-        node = Node(o, node_id=job_id, ret=ret, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
+    def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False):
+        if job_id is None:
+            job_id =  str(uuid1())
+        node = Node(o, node_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
         self.node_map.add_node(node, is_hold=is_hold)
         return node.node_id
 

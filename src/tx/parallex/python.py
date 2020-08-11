@@ -16,6 +16,7 @@ from tx.functional.either import Left, Right, Either
 from .dependentqueue import DependentQueue
 from .stack import Stack
 from tx.readable_log import getLogger, format_message
+import typing as t
 
 
 logger = getLogger(__name__, logging.INFO)
@@ -242,8 +243,6 @@ def python_to_top_spec(body, imported_names):
             "type": "top",
             "sub": specs
         }
-
-EnvStack2 = Stack(set())
 
 def python_to_spec_in_top(stmt, imported_names):
     if isinstance(stmt, For):
