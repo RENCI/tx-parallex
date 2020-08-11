@@ -92,7 +92,7 @@ def test_eoq():
         time.sleep(1)
         logger.debug("process running")
         
-        dq.complete(f1, {}, Just(6))
+        dq.complete(f1, {}, Just({"a":6}))
         logger.debug("queue completed")
         p.join()
         assert v.value == 2
@@ -107,7 +107,7 @@ def test_eoq_2():
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Just(6))
+        dq.complete(f1, {}, Just({"a": 6}))
 
         n, r, sr, f = dq.get(block=True)
         assert n == 2

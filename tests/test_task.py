@@ -55,16 +55,16 @@ def test_enqueue():
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"]
         assert r == {}
-        dq.complete(f, {}, Just(6))
+        dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"]
         assert r == {}
-        dq.complete(f, {}, Just(6))
+        dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"]
-        dq.complete(f, {}, Just(6))
+        dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         print(n)
         assert isinstance(n, EndOfQueue)
@@ -971,7 +971,6 @@ def add(a,b):
 
 
 def test_map_data_start():
-    
     
         py = """
 for s in [1,2,3,4,5,6,7]:
