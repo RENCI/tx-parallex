@@ -7,7 +7,7 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With
 import ast
 import logging
 from importlib import import_module
@@ -99,6 +99,9 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.test, counter)
         stmt_eta = If(test=expr, body=extract_expressions_to_assignments(stmt.body, counter), orelse=extract_expressions_to_assignments(stmt.orelse, counter))
         return assigns + [stmt_eta]
+    if isinstance(stmt, With):
+        stmt_eta = With(items=stmt.items, body=extract_expressions_to_assignments(stmt.body, counter), type_comment=stmt.type_comment)
+        return [stmt_eta]
     elif isinstance(stmt, Return):
         ret = stmt.value
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter)
@@ -227,9 +230,10 @@ def python_to_spec_seq(body, imported_names = {}):
         apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
+        withs = [stmt for stmt in stmts if isinstance(stmt, With)]
         returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
     
-        return python_to_top_spec(apps + fors + ifs + returns, imported_names2)
+        return python_to_top_spec(apps + fors + ifs + withs + returns, imported_names2)
     
     return let_spec(body, func)
 
@@ -260,6 +264,11 @@ def python_to_spec_in_top(stmt, imported_names):
             "on": cond_name,
             "then": python_to_spec_seq(stmt.body, imported_names),
             "else": python_to_spec_seq(stmt.orelse, imported_names),
+        }]
+    if isinstance(stmt, With):
+        return [{
+            "type": "seq",
+            "sub": list(chain.from_iterable(python_to_spec_in_top(stmt, imported_names) for stmt in stmt.body))
         }]
     elif isinstance(stmt, Return):
         ret_val = stmt.value

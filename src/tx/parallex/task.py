@@ -21,7 +21,7 @@ from .dependentqueue import DependentQueue
 from .utils import inverse_function
 from .python import python_to_spec
 from .stack import Stack
-from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, get_task_depends_on, sort_tasks, names, get_python_task_non_dependency_params, get_task_depends_on, preproc_tasks, get_python_task_dependency_params
+from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, get_task_depends_on, sort_tasks, get_dep_set_spec, get_python_task_non_dependency_params, get_task_depends_on, preproc_tasks, get_python_task_dependency_params
 import jsonpickle
 from tx.readable_log import format_message, getLogger
 from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar
@@ -219,6 +219,7 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
         subs = spec.sub
         subs_sorted = sort_tasks(set(data.keys()), subs)
         ret = {}
+        result = {}
         for sub in subs_sorted:
             sub_ret, sub_result = execute(sub, data, ret_prefix=ret_prefix)
             logger.debug(format_message("execute", "SeqSpec", {"sub_result": sub_result}))
@@ -226,7 +227,8 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
                 return {}, sub_result
             ret.update(sub_ret)
             data = {**data, **sub_result.value}
-        return ret, Right({name: data[name] for name in spec.names})
+            result = {**result, **sub_result.value}
+        return ret, result
     elif isinstance(spec, PythonSpec):
         try:
             mod = import_module(spec.mod) if spec.mod != "" else builtins
@@ -311,7 +313,7 @@ def arg_spec_to_arg_error(data: Dict[str, Either], arg: AbsValue):
 
 
 def task_name(i: int, spec: AbsSpec, container_type: str) -> str:
-    names_sub = names(spec)
+    names_sub = get_dep_set_spec(spec)
     return "\"".join(names_sub) if len(names_sub) > 0 else f"@{container_type}{i}"
 
 
@@ -381,12 +383,12 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Any], e
                 generate_tasks(queue, else_spec, data, env=env, ret_prefix=ret_prefix + ["@cond", "@else"], hold=hold, level=level)
     elif isinstance(spec, TopSpec):
         subs = spec.sub
-        subs_names = [name for sub in subs for name in names(sub)]
+        subs_names = [name for sub in subs for name in get_dep_set_spec(sub)]
         if len(subs_names) > len(set(subs_names)):
             raise RuntimeError("cannot reuse name in tasks")
         sub_env = dict(env)
         for i, sub in enumerate(subs):
-            sub_names : Set[str] = names(sub)
+            sub_names : Set[str] = get_dep_set_spec(sub)
             for name in sub_names:
                 sub_env[name] = ret_prefix_to_str(ret_prefix + [task_name(i, sub, "top")], False)
         for i, sub in enumerate(subs):

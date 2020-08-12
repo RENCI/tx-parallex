@@ -97,7 +97,6 @@ class CondSpec(AbsSpec):
 
 @dataclass
 class SeqSpec(AbsSpec):
-    names: Set[str]
     sub: List[AbsSpec] # a sequence of tasks with the last task in the sequence return a value
 
 
@@ -120,7 +119,7 @@ def dict_to_spec(x: dict) -> AbsSpec:
     elif ty == "top":
         return TopSpec(sub=[dict_to_spec(sub) for sub in x["sub"]], node_id=None)
     elif ty == "seq":
-        return SeqSpec(sub=[dict_to_spec(sub) for sub in x["sub"]], names=x["names"], node_id=None)
+        return SeqSpec(sub=[dict_to_spec(sub) for sub in x["sub"]], node_id=None)
     elif ty == "ret":
         return RetSpec(obj=dict_to_value(x["obj"]), node_id=None)
     elif ty == "python":
@@ -130,17 +129,17 @@ def dict_to_spec(x: dict) -> AbsSpec:
 
 
 # return a set of names that a spec provides values for
-def names(spec: AbsSpec) -> Set[str]:
+def get_dep_set_spec(spec: AbsSpec) -> Set[str]:
     if isinstance(spec, PythonSpec):
         return {spec.name}
     elif isinstance(spec, SeqSpec):
-        return spec.names
+        return get_dep_set(spec.sub)
     else:
         return set()
 
 
-def get_dep_set(subs: List[AbsSpec]):
-    return {name for v in subs for name in names(v)}
+def get_dep_set(subs: List[AbsSpec]) -> Set[str]:
+    return {name for v in subs for name in get_dep_set_spec(v)}
 
     
 # give a set of names provided by task in the current or outer scope, return a name that an AbsValue depends on if any
@@ -198,12 +197,12 @@ def sort_tasks(env: Set[str], subs: List[AbsSpec]) -> List[AbsSpec]:
     copy = list(subs)
     subs_sorted = []
     visited = set(env)
-    env2 = set(env) | {name for sub in subs for name in names(sub)}
+    env2 = set(env) | {name for sub in subs for name in get_dep_set_spec(sub)}
     while len(copy) > 0:
         copy2 = []
         updated = False
         for sub in copy:
-            sub_names = names(sub)
+            sub_names = get_dep_set_spec(sub)
             depends_on = get_task_depends_on(env2, sub)
             if len(depends_on - visited) == 0:
                 visited |= sub_names
@@ -260,7 +259,7 @@ def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], env: Set[s
     if isinstance(spec, PythonSpec):
         for p in spec.params.values():
             get_value_depends_on(env, p).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
-        for name in names(spec):
+        for name in get_dep_set_spec(spec):
             node_map[name] = node_id
     elif isinstance(spec, MapSpec):
         get_value_depends_on(env, spec.coll).rec(lambda name: graph.add_edge(node_map[name], node_id), None)

@@ -179,6 +179,27 @@ for i in c:
         }
     }
 
+def test_python_to_spec_with():
+    py = """
+with Seq:
+    x = i"""
+
+    spec = python_to_spec(py)
+    assert spec == {
+        "type": "seq",
+        "sub": [{
+            "type": "python",
+            "name": "x",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "name": "i"
+                }
+            }
+        }]
+    }
+
 def test_python_to_spec7():
     py = """
 y = 1
