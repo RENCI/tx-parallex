@@ -7,7 +7,7 @@ from more_itertools import roundrobin
 from itertools import chain
 from autorepr import autorepr, autotext
 from multiprocessing import Manager
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With, Expr, Yield
 import ast
 import logging
 from importlib import import_module
@@ -102,10 +102,9 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
     if isinstance(stmt, With):
         stmt_eta = With(items=stmt.items, body=extract_expressions_to_assignments(stmt.body, counter), type_comment=stmt.type_comment)
         return [stmt_eta]
-    elif isinstance(stmt, Return):
-        ret = stmt.value
-        expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter)
-        stmt_eta = Return(value=expr)
+    elif isinstance(stmt, Expr) and isinstance(stmt.value, Yield):
+        expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value.value, counter)
+        stmt_eta = Expr(value=Yield(value=expr))
         return assigns + [stmt_eta]
     else:
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter, in_assignment=True)
@@ -212,12 +211,33 @@ def generate_expression_and_assignment(expr_eta, counter):
 def generate_variable_name(counter):
     return f"_var_{'_'.join(map(str, counter))}"
 
+def canonicalize(stmt):
+    if isinstance(stmt, ImportFrom):
+        return stmt
+    if isinstance(stmt, For):
+        return For(target=stmt.target, iter=stmt.iter, body=canonicalize_list(stmt.body), orelse=stmt.orelse, type_comment=stmt.type_comment)
+    elif isinstance(stmt, If):
+        return If(test=stmt.test, body=canonicalize_list(stmt.body), orelse=canonicalize_list(stmt.orelse))
+    if isinstance(stmt, With):
+        return With(items=stmt.items, body=canonicalize_list(stmt.body), type_comment=stmt.type_comment)
+    elif isinstance(stmt, Return):
+        return Expr(value=Yield(value=stmt.value))
+    elif isinstance(stmt, Expr) and isinstance(stmt.value, Yield):
+        return stmt
+    else:
+        return stmt
+    
+    
+def canonicalize_list(stmts):
+    return list(map(canonicalize, stmts))
+
 
 def python_to_spec(py):
     t = parse(py)
     body = t.body
 
-    body_eta = extract_expressions_to_assignments(body)
+    body_canonical = canonicalize_list(body)
+    body_eta = extract_expressions_to_assignments(body_canonical)
     
     return python_to_spec_seq(body_eta)
     
@@ -231,7 +251,7 @@ def python_to_spec_seq(body, imported_names = {}):
         fors = [stmt for stmt in stmts if isinstance(stmt, For)]
         ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
         withs = [stmt for stmt in stmts if isinstance(stmt, With)]
-        returns = [stmt for stmt in stmts if isinstance(stmt, Return)]
+        returns = [stmt for stmt in stmts if isinstance(stmt, Expr) and isinstance(stmt.value, Yield)]
     
         return python_to_top_spec(apps + fors + ifs + withs + returns, imported_names2)
     
@@ -270,8 +290,8 @@ def python_to_spec_in_top(stmt, imported_names):
             "type": "seq",
             "sub": list(chain.from_iterable(python_to_spec_in_top(stmt, imported_names) for stmt in stmt.body))
         }]
-    elif isinstance(stmt, Return):
-        ret_val = stmt.value
+    elif isinstance(stmt, Expr) and isinstance(stmt.value, Yield):
+        ret_val = stmt.value.value
         return [{
             "type": "ret",
             "obj": python_ast_to_term(ret_val)

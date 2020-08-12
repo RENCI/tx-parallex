@@ -104,6 +104,19 @@ return {'ret1': a}"""
         }]
     }
 
+def test_python_to_spec_yield():
+    py = """
+yield "1"
+"""
+    spec = python_to_spec(py)
+    assert spec == {
+
+            "type": "ret",
+            "obj": {
+                "data": "1"
+            }
+    }
+
 def test_python_to_spec4():
     py = "a = 1"
     spec = python_to_spec(py)
@@ -603,88 +616,88 @@ z = f(_var_0_0)
 def test_expression_to_assigns4():
     py = """
 for i in f():
-    return i
+    yield i
 """
     py2 = """
 _var_0 = f()
 for i in _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns5():
     py = """
 if f():
-    return i
+    yield i
 """
     py2 = """
 _var_0 = f()
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns6():
     py = """
 if a == b:
-    return i
+    yield i
 """
     py2 = """
 _var_0 = a == b
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns7():
     py = """
 if a and b:
-    return i
+    yield i
 """
     py2 = """
 _var_0 = a and b
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns8():
     py = """
 if a in b:
-    return i
+    yield i
 """
     py2 = """
 _var_0 = a in b
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns9():
     py = """
 if c() and d():
-    return i
+    yield i
 """
     py2 = """
 _var_0_0 = c()
 _var_0_1 = d()
 _var_0 = _var_0_0 and _var_0_1
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
 def test_expression_to_assigns10():
     py = """
 if c() in d():
-    return i
+    yield i
 """
     py2 = """
 _var_0_left = c()
 _var_0_comparator_0 = d()
 _var_0 = _var_0_left in _var_0_comparator_0
 if _var_0:
-    return i
+    yield i
 """
     do_compare_expression(py, py2)
 
