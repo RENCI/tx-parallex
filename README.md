@@ -219,6 +219,38 @@ sub:
       name: y
 ```
 
+### `seq`
+
+The `seq` task forces all subtasks to be run sequentially. 
+
+Syntax:
+```
+type: top
+sub: <subtasks>
+```
+
+It reads the `name` properties of subtasks that are not in data.
+
+Example:
+```
+type: seq
+sub:
+- type: python
+  name: y
+  mod: math
+  func: sqr
+  params: 
+    x:
+      data: 1
+- type: python
+  name: z
+  mod: math
+  func: sqr
+  params: 
+    x:
+      name: y
+```
+
 ### `ret`
 `ret` specify a value. The pipeline will return a dictionary. When a task appears under a `map` task, it is prefix with the index of the element in that collection as following 
 
@@ -279,7 +311,7 @@ Example:
 ```
 a = 1
 y = sqr(x=a)
-return y
+yield y
 ```
 
 ### function application
@@ -318,7 +350,7 @@ Example:
 ```
 for a in [1, 2, 3]:
   y = math.sqr(a)
-  return y
+  yield y
 ```
 
 ### if
@@ -334,15 +366,28 @@ This translates to `cond`.
 Example:
 ```
 if z:
-    return 1
+    yield 1
 else:
-    return 0
+    yield 0
 ```
 
 The semantics of if is different from python, variables inside if is not visible outside
-### return
+### with
 ```
-return <expr>
+with Seq:
+    ...
+```
+This translates to `seq`. 
+
+Example:
+```
+y = math.sqr(1)
+return y
+```
+
+### yield
+```
+yield <expr>
 ```
 This translates to `ret`. 
 
