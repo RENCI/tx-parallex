@@ -381,8 +381,9 @@ This translates to `seq`.
 
 Example:
 ```
-y = math.sqr(1)
-return y
+with Seq:
+    y = math.sqr(1)
+    return y
 ```
 
 ### yield
