@@ -153,7 +153,7 @@ class Seq(BaseTask):
     task_id: str
 
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
-        data = {**{k:Right(v) for k,v in self.data.items()}, **{name: results[name] for name in self.depends_on}}
+        data = {**{k:Right(v) for k,v in self.data.items()}, **{name: Right(results[name]) for name in self.depends_on}}
         return execute(self.spec, data, self.ret_prefix)
 
     
@@ -228,7 +228,7 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
             ret.update(sub_ret)
             data = {**data, **sub_result.value}
             result = {**result, **sub_result.value}
-        return ret, result
+        return ret, Right(result)
     elif isinstance(spec, PythonSpec):
         try:
             mod = import_module(spec.mod) if spec.mod != "" else builtins
@@ -240,10 +240,10 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
                 return {}, errors[0]
             args2 = {k: v.value for k, v in args0.items()}
             args, kwargs = split_args(args2)
-            logger.debug(format_message("execute", "PythonSpec", {}))
+            logger.debug(format_message("execute", "PythonSpec before", {"spec.name": spec.name, "spec.mod": spec.mod, "func": lambda: func, "spec.func" : spec.func, "spec.params": spec.params, "args": args, "kwargs": kwargs}))
             
             result = func(*map(lambda x: x[1], sorted(args.items(), key=lambda x: x[0])), **kwargs)
-            logger.debug(format_message("execute", "PythonSpec", {"spec.name": spec.name, "spec.mod": spec.mod, "func": lambda: func, "spec.func" : spec.func, "spec.params": spec.params, "args": args, "kwargs": kwargs, "result": result, "func(1)": func(1)}))
+            logger.debug(format_message("execute", "PythonSpec after", {"spec.name": spec.name, "spec.mod": spec.mod, "func": lambda: func, "spec.func" : spec.func, "spec.params": spec.params, "args": args, "kwargs": kwargs, "result": result}))
             if not isinstance(result, Either):
                 result = Right(result)
         except Exception as e:
@@ -395,7 +395,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Any], e
             generate_tasks(queue, sub, data, env=sub_env, ret_prefix=ret_prefix + [task_name(i, sub, "top")], hold=hold, level=level)
     elif isinstance(spec, SeqSpec):
         dependencies_dict = get_task_depends_on_dict(env, spec) 
-        task = Seq(spec=spec, data=data, depends_on=set(dependencies_dict.keys()), task_id=ret_prefix_to_str(ret_prefix, False), ret_prefix=ret_prefix)
+        task = Seq(spec=spec, data=data, depends_on=set(dependencies_dict.keys()), task_id=ret_prefix_to_str(ret_prefix, False), ret_prefix=ret_prefix + ["@seq"])
         enqueue_task(queue, task, {**inverse_dict(dependencies_dict), **{name: set() for name in hold}}, {})
     elif isinstance(spec, PythonSpec):
         name = spec.name

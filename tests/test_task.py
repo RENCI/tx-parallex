@@ -130,7 +130,6 @@ def test_execute():
     
         spec = {
             "type": "seq",
-            "names": [],
             "sub": [{
                 "type":"map",
                 "coll": {
@@ -170,7 +169,6 @@ def test_execute_dependent():
     
         spec = {
             "type":"seq",
-            "names": ["a"],
             "sub": [{
                 "type": "python",
                 "name": "a",
@@ -1159,6 +1157,72 @@ def test_args_order():
         py = """
 t = tx.functional.utils.identity(2)
 return t - 1
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(1)}
+
+
+def test_visible_in_outer_scope_from_within_with():
+    
+        py = """
+with Seq:
+    t = tx.functional.utils.identity(2)
+yield t - 1
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(1)}
+
+
+def test_visible_in_outer_scope_from_within_with_topological_sort():
+    
+        py = """
+yield t - 1
+with Seq:
+    t = tx.functional.utils.identity(2)
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(1)}
+
+
+def test_seq():
+    
+        py = """
+with Seq:
+    t = tx.functional.utils.identity(2)
+    yield t
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(2)}
+
+
+def test_yield_in_seq():
+    
+        py = """
+t = tx.functional.utils.identity(2)
+with Seq:
+    yield t
+"""
+        data = {}
+
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(2)}
+
+
+def test_reference_outer_in_seq():
+    
+        py = """
+t = tx.functional.utils.identity(2)
+with Seq:
+    s = t - 1
+    yield s
 """
         data = {}
 

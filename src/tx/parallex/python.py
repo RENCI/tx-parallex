@@ -53,24 +53,6 @@ def python_ast_to_term(expr):
         }
 
     
-def let_spec(body, func):
-    assigns = [stmt for stmt in body if isinstance(stmt, Assign) and not is_dynamic(stmt.value)]
-    rest = [stmt for stmt in body if stmt not in assigns]
-    spec = func(rest)
-    def let_spec_handle_assign(assigns, spec):
-        if len(assigns) == 0:
-            return spec
-        else:
-            *resta, assign = assigns
-            spec_wrapped_by_assign = {
-                "type": "let",
-                "var": assign.targets[0].id,
-                "obj": python_ast_to_term(assign.value),
-                "sub": spec
-            }
-            return let_spec_handle_assign(resta, spec_wrapped_by_assign)
-    return let_spec_handle_assign(assigns, spec)
-
 # extract expression in for, if, parameters into assignment
 def extract_expressions_to_assignments(stmts, counter=[]):
     return list(chain(*(extract_expressions_to_assignments_in_statement(stmt, counter + [i]) for i, stmt in enumerate(stmts))))
@@ -113,7 +95,11 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
     
     
 def extract_expressions_to_assignments_in_expression(expr, counter, in_assignment=False):
-    if isinstance(expr, Call):
+    if not is_dynamic(expr):
+        return expr, []
+    elif isinstance(expr, Name):
+        return expr, []
+    elif isinstance(expr, Call):
         args, assign_lists = extract_expressions_to_assignments_in_expressions(expr.args, counter)
         assigns = list(chain(*assign_lists))
         keywords_exprs, assign_lists_keywords = extract_expressions_to_assignments_in_expressions([(kw.arg, kw.value) for kw in expr.keywords], counter, keyword=True)
@@ -154,25 +140,16 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
     elif isinstance(expr, List):
         exprs, assign_lists = extract_expressions_to_assignments_in_expressions(expr.elts, counter)
         assigns = list(chain(*assign_lists))
-        if not is_dynamic_args(exprs) and len(assigns) == 0:
-            return expr, []
-        else:
-            expr_eta = List(elts=list(exprs), ctx=expr.ctx)
+        expr_eta = List(elts=list(exprs), ctx=expr.ctx)
     elif isinstance(expr, Tuple):
         exprs, assign_lists = extract_expressions_to_assignments_in_expressions(expr.elts, counter)
         assigns = list(chain(*assign_lists))
-        if not is_dynamic_args(exprs) and len(assigns) == 0:
-            return expr, []
-        else:
-            expr_eta = Tuple(elts=list(exprs), ctx=expr.ctx)
+        expr_eta = Tuple(elts=list(exprs), ctx=expr.ctx)
     elif isinstance(expr, Dict):
         exprs_keys, assign_keys = extract_expressions_to_assignments_in_expressions(expr.keys, counter + ["keys"])
         exprs_values, assign_values = extract_expressions_to_assignments_in_expressions(expr.values, counter + ["values"])
         assigns = list(chain(*assign_keys, *assign_values))
-        if not is_dynamic_args(exprs_keys) and not is_dynamic_args(exprs_values) and len(assigns) == 0:
-            return expr, []
-        else:
-            expr_eta = Dict(keys=list(exprs_keys), values=list(exprs_values))
+        expr_eta = Dict(keys=list(exprs_keys), values=list(exprs_values))
     else:
         return expr, []
 
@@ -242,20 +219,17 @@ def python_to_spec(py):
     return python_to_spec_seq(body_eta)
     
 
-def python_to_spec_seq(body, imported_names = {}):
-    def func(stmts):
-        importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
-        imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
-        logger.debug(f"imported_names2 = {imported_names2}")
-        apps = [stmt for stmt in stmts if isinstance(stmt, Assign) and is_dynamic(stmt.value)]
-        fors = [stmt for stmt in stmts if isinstance(stmt, For)]
-        ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
-        withs = [stmt for stmt in stmts if isinstance(stmt, With)]
-        returns = [stmt for stmt in stmts if isinstance(stmt, Expr) and isinstance(stmt.value, Yield)]
+def python_to_spec_seq(stmts, imported_names = {}):
+    importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
+    imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
+    logger.debug(f"imported_names2 = {imported_names2}")
+    assigns = [stmt for stmt in stmts if isinstance(stmt, Assign)]
+    fors = [stmt for stmt in stmts if isinstance(stmt, For)]
+    ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
+    withs = [stmt for stmt in stmts if isinstance(stmt, With)]
+    returns = [stmt for stmt in stmts if isinstance(stmt, Expr) and isinstance(stmt.value, Yield)]
     
-        return python_to_top_spec(apps + fors + ifs + withs + returns, imported_names2)
-    
-    return let_spec(body, func)
+    return python_to_top_spec(assigns + fors + ifs + withs + returns, imported_names2)
 
 
 def python_to_top_spec(body, imported_names):
@@ -302,19 +276,25 @@ def python_to_spec_in_top(stmt, imported_names):
         target = targets[0]
         name = target.id
         app = stmt.value
-        if isinstance(app, Name):
+        if not is_dynamic(app):
             func = "identity"
             mod = "tx.functional.utils"
             keywords = {
                 0: app
             }
-        if isinstance(app, Starred):
+        elif isinstance(app, Name):
+            func = "identity"
+            mod = "tx.functional.utils"
+            keywords = {
+                0: app
+            }
+        elif isinstance(app, Starred):
             func = "_starred"
             mod = "tx.parallex.data"
             keywords = {
                 0: app.value
             }
-        if isinstance(app, Call):
+        elif isinstance(app, Call):
             fqfunc = app.func
             keywords = {
                 **{keyword.arg: keyword.value for keyword in app.keywords},

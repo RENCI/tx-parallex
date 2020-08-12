@@ -121,14 +121,14 @@ def test_python_to_spec4():
     py = "a = 1"
     spec = python_to_spec(py)
     assert spec == {
-        "type":"let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
-            "type": "top",
-            "sub": []
+        "type":"python",
+        "name": "a",
+        "mod": "tx.functional.utils",
+        "func": "identity",
+        "params": {
+            0: {
+                "data": 1
+            }
         }
     }
 
@@ -167,12 +167,18 @@ for i in c:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "y",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "y",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        }, {
             "type": "map",
             "var": "i",
             "coll": {
@@ -189,7 +195,7 @@ for i in c:
                         }
                     }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_with():
@@ -222,12 +228,18 @@ for i in c:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "y",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "y",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        }, {
             "type": "map",
             "var": "i",
             "coll": {
@@ -254,7 +266,7 @@ for i in c:
                         }
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec8():
@@ -267,46 +279,58 @@ for i in c:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "y",
-        "obj": {
-            "data": 4
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "y",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 4
+                }
+            }
+        }, {
             "type": "map",
             "var": "i",
             "coll": {
                 "name": "c"
             },
             "sub": {
-                "type": "let",
-                "var": "z",
-                "obj": {
-                    "data": 390
-                },
-                "sub": {
+                "type": "top",
+                "sub": [{
+                    "type": "python",
+                    "name": "z",
+                    "mod": "tx.functional.utils",
+                    "func": "identity",
+                    "params": {
+                        0: {
+                            "data": 390
+                        }
+                    }
+                }, {
                     "type": "map",
                     "var": "j",
                     "coll": {
                         "name": "d"
                     },
                     "sub": {
-                            "type": "python",
-                            "name": "x",
-                            "mod": "mod1",
-                            "func": "func2",
-                            "params": {
-                                "s": {
-                                    "name": "i"
-                                },
-                                "t": {
-                                    "name": "j"
-                                }
+                        "type": "python",
+                        "name": "x",
+                        "mod": "mod1",
+                        "func": "func2",
+                        "params": {
+                            "s": {
+                                "name": "i"
+                            },
+                            "t": {
+                                "name": "j"
                             }
+                        }
                     }
-                }
+                }]
             }
-        }
+        }]
     }
 
 def test_python_to_spec9():
@@ -374,53 +398,56 @@ for j in c:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "d",
-        "obj": {
-            "data": [2,3]
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "c",
-                "mod": "tests.test_task",
-                "func": "identity",
-                "params": {
-                    0: {
-                        "name": "d"
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "d",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": [2,3]
+                }
+            }
+        }, {
+            "type": "python",
+            "name": "c",
+            "mod": "tests.test_task",
+            "func": "identity",
+            "params": {
+                0: {
+                    "name": "d"
+                }
+            }
+        }, {
+            "type": "map",
+            "var": "j",
+            "coll": {
+                "name": "c"
+            },
+            "sub": {
+                "type": "top",
+                "sub": [{
+                    "type": "python",
+                    "name": "a",
+                    "mod": "tests.test_task",
+                    "func": "g",
+                    "params": {
+                        "x": {
+                            "data": 2
+                        },
+                        "y": {
+                            "name": "j"
+                        }
                     }
-                }
-            }, {
-                "type": "map",
-                "var": "j",
-                "coll": {
-                    "name": "c"
-                },
-                "sub": {
-                    "type": "top",
-                    "sub": [{
-                        "type": "python",
-                        "name": "a",
-                        "mod": "tests.test_task",
-                        "func": "g",
-                        "params": {
-                            "x": {
-                                "data": 2
-                            },
-                            "y": {
-                                "name": "j"
-                            }
-                        }
-                    }, {
-                        "type": "ret",
-                        "obj": {
-                            "name": "a"
-                        }
-                    }]
-                }
-            }]
-        }
+                }, {
+                    "type": "ret",
+                    "obj": {
+                        "name": "a"
+                    }
+                }]
+            }
+        }]
     }
 
 def test_python_to_spec12():
@@ -433,12 +460,18 @@ else:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "z",
-        "obj": {
-            "data": True
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "z",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": True
+                }
+            }
+        }, {
             "type": "cond",
             "on": {
                 "name": "z"
@@ -455,7 +488,7 @@ else:
                     "data": 0
                 }
             }
-        }
+        }]
     }
     
 
@@ -469,12 +502,18 @@ else:
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "z",
-        "obj": {
-            "data": False
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "z",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                "data": False
+                }
+            }
+        }, {
             "type": "cond",
             "on": {
                 "name": "z"
@@ -491,7 +530,7 @@ else:
                     "data": 0
                 }
             }
-        }
+        }]
     }
     
 
@@ -1022,54 +1061,57 @@ a,b,c = [1,2,3]
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "_var_0_target",
-        "obj": {
-            "data": [1,2,3]
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "a",
-                "mod": "tx.parallex.data",
-                "func": "_subscript",
-                "params": {
-                    0: {
-                        "name": "_var_0_target"
-                    },
-                    1: {
-                        "data": 0
-                    }
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "_var_0_target",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": [1,2,3]
                 }
-            },{
-                "type": "python",
-                "name": "b",
-                "mod": "tx.parallex.data",
-                "func": "_subscript",
-                "params": {
-                    0: {
-                        "name": "_var_0_target"
-                    },
-                    1: {
-                        "data": 1
-                    }
+            }
+        }, {
+            "type": "python",
+            "name": "a",
+            "mod": "tx.parallex.data",
+            "func": "_subscript",
+            "params": {
+                0: {
+                    "name": "_var_0_target"
+                },
+                1: {
+                    "data": 0
                 }
-            },{
-                "type": "python",
-                "name": "c",
-                "mod": "tx.parallex.data",
-                "func": "_subscript",
-                "params": {
-                    0: {
-                        "name": "_var_0_target"
-                    },
-                    1: {
-                        "data": 2
-                    }
+            }
+        },{
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_subscript",
+            "params": {
+                0: {
+                    "name": "_var_0_target"
+                },
+                1: {
+                    "data": 1
                 }
-            }]
-        }
+            }
+        },{
+            "type": "python",
+            "name": "c",
+            "mod": "tx.parallex.data",
+            "func": "_subscript",
+            "params": {
+                0: {
+                    "name": "_var_0_target"
+                },
+                1: {
+                    "data": 2
+                }
+            }
+        }]
     }
 
 def test_python_to_spec_dynamic_list():
@@ -1080,12 +1122,18 @@ b = [a]
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.parallex.data",
@@ -1095,7 +1143,7 @@ b = [a]
                     "name": "a"
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_dynamic_list_nested():
@@ -1106,35 +1154,38 @@ b = [[a]]
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "_var_1_0",
-                "mod": "tx.parallex.data",
-                "func": "_list",
-                "params": {
-                    0: {
-                        "name": "a"
-                    }
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
                 }
-            }, {
-                "type": "python",
-                "name": "b",
-                "mod": "tx.parallex.data",
-                "func": "_list",
-                "params": {
-                    0: {
-                        "name": "_var_1_0",
-                    }
+            }
+        },{
+            "type": "python",
+            "name": "_var_1_0",
+            "mod": "tx.parallex.data",
+            "func": "_list",
+            "params": {
+                0: {
+                    "name": "a"
                 }
-            }]
-        }
+            }
+        }, {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_list",
+            "params": {
+                0: {
+                    "name": "_var_1_0",
+                }
+            }
+        }]
     }
 
 def test_python_to_spec_dynamic_tuple():
@@ -1145,12 +1196,18 @@ b = (a,)
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.parallex.data",
@@ -1160,7 +1217,7 @@ b = (a,)
                     "name": "a"
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_dynamic_tuple_nested():
@@ -1171,35 +1228,38 @@ b = ((a,),)
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "_var_1_0",
-                "mod": "tx.parallex.data",
-                "func": "_tuple",
-                "params": {
-                    0: {
-                        "name": "a"
-                    }
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
                 }
-            }, {
-                "type": "python",
-                "name": "b",
-                "mod": "tx.parallex.data",
-                "func": "_tuple",
-                "params": {
-                    0: {
-                        "name": "_var_1_0",
-                    }
+            }
+        },{
+            "type": "python",
+            "name": "_var_1_0",
+            "mod": "tx.parallex.data",
+            "func": "_tuple",
+            "params": {
+                0: {
+                    "name": "a"
                 }
-            }]
-        }
+            }
+        }, {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_tuple",
+            "params": {
+                0: {
+                    "name": "_var_1_0",
+                }
+            }
+        }]
     }
 
 def test_python_to_spec_dynamic_dict():
@@ -1210,12 +1270,18 @@ b = {"t":a}
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.parallex.data",
@@ -1228,7 +1294,7 @@ b = {"t":a}
                     "name": "a"
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_dynamic_dict_key():
@@ -1239,12 +1305,18 @@ b = {t:1}
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "t",
-        "obj": {
-            "data": "t"
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "t",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": "t"
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.parallex.data",
@@ -1257,7 +1329,7 @@ b = {t:1}
                     "data": 1
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_dynamic_dict_nested():
@@ -1268,41 +1340,44 @@ b = {"s":{"t":a}}
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "_var_1_values_0",
-                "mod": "tx.parallex.data",
-                "func": "_dict",
-                "params": {
-                    0: {
-                        "data": "t"
-                    },
-                    1: {
-                        "name": "a"
-                    }
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
                 }
-            }, {
-                "type": "python",
-                "name": "b",
-                "mod": "tx.parallex.data",
-                "func": "_dict",
-                "params": {
-                    0: {
-                        "data": "s"
-                    },
-                    1: {
-                        "name": "_var_1_values_0",
-                    }
+            }
+        },{
+            "type": "python",
+            "name": "_var_1_values_0",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": "t"
+                },
+                1: {
+                    "name": "a"
                 }
-            }]
-        }
+            }
+        }, {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": "s"
+                },
+                1: {
+                    "name": "_var_1_values_0",
+                }
+            }
+        }]
     }
 
 def test_python_to_spec_dynamic_dict_nested_key():
@@ -1313,41 +1388,44 @@ b = {"s":{t:1}}
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "t",
-        "obj": {
-            "data": "t"
-        },
-        "sub": {
-            "type": "top",
-            "sub": [{
-                "type": "python",
-                "name": "_var_1_values_0",
-                "mod": "tx.parallex.data",
-                "func": "_dict",
-                "params": {
-                    0: {
-                        "name": "t"
-                    },
-                    1: {
-                        "data": 1
-                    }
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "t",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": "t"
                 }
-            }, {
-                "type": "python",
-                "name": "b",
-                "mod": "tx.parallex.data",
-                "func": "_dict",
-                "params": {
-                    0: {
-                        "data": "s"
-                    },
-                    1: {
-                        "name": "_var_1_values_0",
-                    }
+            }
+        },{
+            "type": "python",
+            "name": "_var_1_values_0",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "name": "t"
+                },
+                1: {
+                    "data": 1
                 }
-            }]
-        }
+            }
+        }, {
+            "type": "python",
+            "name": "b",
+            "mod": "tx.parallex.data",
+            "func": "_dict",
+            "params": {
+                0: {
+                    "data": "s"
+                },
+                1: {
+                    "name": "_var_1_values_0",
+                }
+            }
+        }]
     }
 
 def test_python_to_spec_assign_variable():
@@ -1358,12 +1436,18 @@ b = a
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.functional.utils",
@@ -1373,7 +1457,7 @@ b = a
                     "name": "a"
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_assign_variable():
@@ -1384,12 +1468,18 @@ b = a
 
     spec = python_to_spec(py)
     assert spec == {
-        "type": "let",
-        "var": "a",
-        "obj": {
-            "data": 1
-        },
-        "sub": {
+        "type": "top",
+        "sub": [{
+            "type": "python",
+            "name": "a",
+            "mod": "tx.functional.utils",
+            "func": "identity",
+            "params": {
+                0: {
+                    "data": 1
+                }
+            }
+        },{
             "type": "python",
             "name": "b",
             "mod": "tx.functional.utils",
@@ -1399,7 +1489,7 @@ b = a
                     "name": "a"
                 }
             }
-        }
+        }]
     }
 
 def test_python_to_spec_starred_variable_in_list_lit():

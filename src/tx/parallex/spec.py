@@ -256,11 +256,12 @@ def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], env: Set[s
     if parent_node_id is not None:
         graph.add_edge(parent_node_id, node_id)
 
+    for name in get_dep_set_spec(spec):
+        node_map[name] = node_id
+        
     if isinstance(spec, PythonSpec):
         for p in spec.params.values():
             get_value_depends_on(env, p).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
-        for name in get_dep_set_spec(spec):
-            node_map[name] = node_id
     elif isinstance(spec, MapSpec):
         get_value_depends_on(env, spec.coll).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         generate_dependency_graph(graph, node_map, env, return_ids, spec.sub, static_ret_prefix + ["@map"], node_id)
@@ -332,6 +333,10 @@ def remove_unreachable_tasks(dg: Graph, ret_ids: Set[str], spec: AbsSpec) -> Abs
             raise RuntimeError(f"remove_unreachable_tasks: unsupported task {spec}")
 
         
+def propagate_constants(dg: Graph, ret_ids: Set[str], spec: AbsSpec) -> AbsSpec:
+    return spec
+
+        
 def combine_sequential_tasks(dg: Graph, ret_ids: Set[str], spec: AbsSpec) -> AbsSpec:
     return spec
 
@@ -342,6 +347,7 @@ def preproc_tasks(spec):
     dg, ret_ids = dependency_graph(spec)
     # logger.debug(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
     spec_simplified = remove_unreachable_tasks(dg, ret_ids, spec)
+    spec_simplified = propagate_constants(dg, ret_ids, spec)
     spec_combined = combine_sequential_tasks(dg, ret_ids, spec_simplified)
     # logger.debug(f"remove_unreachable_tasks: \n***\n{spec}\n -> \n{spec_simplified}\n&&&")
     return spec_combined

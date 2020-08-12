@@ -102,12 +102,6 @@
 		"type": {
 		    "enum": ["seq"]
 		},
-		"names": {
-		    "type": "array",
-		    "items": {
-			"type": "string"
-		    }
-		},
 		"sub": {
 		    "type": "array",
 		    "items": {
@@ -115,7 +109,7 @@
 		    }
 		}
 	    },
-	    "required": ["sub", "names"],
+	    "required": ["sub"],
 	    "additionalProperties": false
 	}, {
 	    "properties": {
