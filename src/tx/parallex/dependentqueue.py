@@ -10,9 +10,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import List, Any, Dict, Tuple, Callable, Set, Optional
 from ctypes import c_int
-import pyarrow.plasma as plasma
 import numpy as np
 from tx.parallex.data import Starred
+from .objectstore import ObjectStore
 
 logger = getLogger(__name__, logging.INFO)
 
@@ -59,77 +59,6 @@ class NodeMetadata:
     subnode_results: Dict[str, Either] = field(default_factory=dict)
 
 
-def jsonify(o):
-    if isinstance(o, Left):
-        return {
-            "left": jsonify(o.value)
-        }
-    elif isinstance(o, Right):
-        return {
-            "right": jsonify(o.value)
-        }
-    elif isinstance(o, Starred):
-        return {
-            "starred": jsonify(o.value)
-        }
-    else:
-        return o
-
-def unjsonify(o):
-    if isinstance(o, dict) and "left" in o:
-        return Left(unjsonify(o["left"]))
-    elif isinstance(o, dict) and "right" in o:
-        return Right(unjsonify(o["right"]))
-    elif isinstance(o, dict) and "starred" in o:
-        return Starred(unjsonify(o["starred"]))
-    else:
-        return o
-
-
-class ObjectStore:
-    def __init__(self, manager, plasma_store):
-        self.manager = manager
-        self.shared_ref_dict = manager.dict()
-        self.shared_ref_lock_dict = manager.dict()
-        self.plasma_store = plasma_store
-
-
-    def init_thread(self):
-        self.client = plasma.connect(self.plasma_store)
-        
-    def put(self, o) :    
-        oid = self.client.put(jsonify(o))
-        logger.debug(format_message("ObjectStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
-        self.shared_ref_lock_dict[oid] = self.manager.Lock()
-        self.shared_ref_dict[oid] = 0
-        return oid
-
-    def increment_ref(self, oid):
-        with self.shared_ref_lock_dict[oid]:
-            val = self.shared_ref_dict[oid]
-            val += 1
-            self.shared_ref_dict[oid] = val
-            logger.debug(format_message("ObjectStore.increment_ref", "incrementing object ref count", {"oid": oid, "val": val}))
-        
-    def decrement_ref(self, oid):
-        with self.shared_ref_lock_dict[oid]:
-            val = self.shared_ref_dict[oid]
-            val -= 1
-            logger.debug(format_message("ObjectStore.decrement_ref", "decrement object ref count", {"oid": oid, "val": val}))
-            
-            if val == 0:
-                logger.debug(format_message("ObjectStore.decrement_ref", "deleting object", {"oid": oid}))
-                self.client.delete([oid])
-                del self.shared_ref_dict[oid]
-                del self.shared_ref_lock_dict[oid]
-            else:
-                self.shared_ref_dict[oid] = val
-                
-    def get(self, oid):
-        logger.debug(format_message("ObjectStore.get", "getting object from shared memory store", {"oid": oid}))
-        return unjsonify(self.client.get(oid))
-
-    
 class NodeMap:
     """
     :attr nodes:
