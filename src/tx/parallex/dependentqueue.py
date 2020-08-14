@@ -109,18 +109,20 @@ class ObjectStore:
         return oid
 
     def increment_ref(self, oid):
-        logger.debug(format_message("ObjectStore.put", "incrementing object ref count", {"oid": oid}))
         with self.shared_ref_lock_dict[oid]:
-            self.shared_ref_dict[oid] += 1
+            val = self.shared_ref_dict[oid]
+            val += 1
+            self.shared_ref_dict[oid] = val
+            logger.debug(format_message("ObjectStore.increment_ref", "incrementing object ref count", {"oid": oid, "val": val}))
         
     def decrement_ref(self, oid):
-        logger.debug(format_message("ObjectStore.put", "decrementing object ref count", {"oid": oid}))
         with self.shared_ref_lock_dict[oid]:
             val = self.shared_ref_dict[oid]
             val -= 1
+            logger.debug(format_message("ObjectStore.decrement_ref", "decrement object ref count", {"oid": oid, "val": val}))
             
             if val == 0:
-                logger.debug(format_message("ObjectStore.put", "deleting object ref count", {"oid": oid}))
+                logger.debug(format_message("ObjectStore.decrement_ref", "deleting object", {"oid": oid}))
                 self.client.delete([oid])
                 del self.shared_ref_dict[oid]
                 del self.shared_ref_lock_dict[oid]
@@ -224,16 +226,24 @@ class NodeMap:
         subnode_refs = meta.subnode_refs
         logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
+        oids : Set[ObjectID] = set()
+        
         # put results in object store
         if isinstance(result, Left):
             oid = self.object_store.put(result)
             result_oid = lambda _: oid
+            # Increment reference count so that other processes cannot reduce the ref count to 0 before we finished adding them to all results or subnode_results of their refs and subnode_refs.
+            self.object_store.increment_ref(oid)
+            oids.add(oid)
         else:
             result_dict = result.value
             result_oid_dict = {}
             for k, v in result_dict.items():
                 void = self.object_store.put(v)
                 result_oid_dict[k] = void
+                # same as above
+                self.object_store.increment_ref(void)
+                oids.add(void)
             result_oid = lambda x: result_oid_dict[x]
         
         for ref in subnode_refs | refs:
@@ -254,12 +264,16 @@ class NodeMap:
                         self.object_store.increment_ref(oid)
                     refmeta.depends -= 1
 
-        for ref in subnode_refs | refs:
-            with self.node_lock[ref]:
-                refmeta = self.meta[ref]
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
+
+                    # If we didn't increment the ref count of oids that are used in this task when those oids are generated, some other process that grabs this task could reduce the ref count to 0 and cause the object to be deleted from the object store before we finish adding it to other refs and subnode_refs.
+                    # Adding tasks only when all refs and subnode_refs are added to will not work without locking the lock because more than one processes may progress to this block at the same time causing creating duplicate tasks.
                     self.put_ready_queue(task)
+                    self.ready_queue.put(task)
+
+        for oid in oids:
+            self.object_store.decrement_ref(oid)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
         self.put_output(ret)
