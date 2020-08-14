@@ -10,8 +10,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import List, Any, Dict, Tuple, Callable, Set, Optional
 from ctypes import c_int
-from brain_plasma import Brain
-
+import pyarrow.plasma as plasma
+import numpy as np
+from tx.parallex.data import Starred
 
 logger = getLogger(__name__, logging.INFO)
 
@@ -61,50 +62,62 @@ class NodeMetadata:
 def jsonify(o):
     if isinstance(o, Left):
         return {
-            "left": o.value
+            "left": jsonify(o.value)
         }
     elif isinstance(o, Right):
         return {
-            "right": o.value
+            "right": jsonify(o.value)
+        }
+    elif isinstance(o, Starred):
+        return {
+            "starred": jsonify(o.value)
         }
     else:
         return o
 
 def unjsonify(o):
     if isinstance(o, dict) and "left" in o:
-        return Left(o["left"])
+        return Left(unjsonify(o["left"]))
     elif isinstance(o, dict) and "right" in o:
-        return Right(o["right"])
+        return Right(unjsonify(o["right"]))
+    elif isinstance(o, dict) and "starred" in o:
+        return Starred(unjsonify(o["starred"]))
     else:
         return o
-    
+
+
 class ObjectStore:
-    def __init__(self, manager):
+    def __init__(self, manager, plasma_store):
         self.manager = manager
         self.shared_ref_dict = manager.dict()
         self.shared_ref_lock_dict = manager.dict()
-        self.brain = Brain()
+        self.plasma_store = plasma_store
+
+
+    def init_thread(self):
+        self.client = plasma.connect(self.plasma_store)
         
-    def put(self, o) :
-        
-        oid = str(uuid1())
-        self.brain[oid] = jsonify(o)
+    def put(self, o) :    
+        oid = self.client.put(jsonify(o))
         logger.debug(format_message("ObjectStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
-        self.shared_ref_dict[oid] = 0
         self.shared_ref_lock_dict[oid] = self.manager.Lock()
+        self.shared_ref_dict[oid] = 0
         return oid
 
     def increment_ref(self, oid):
+        logger.debug(format_message("ObjectStore.put", "incrementing object ref count", {"oid": oid}))
         with self.shared_ref_lock_dict[oid]:
             self.shared_ref_dict[oid] += 1
         
     def decrement_ref(self, oid):
+        logger.debug(format_message("ObjectStore.put", "decrementing object ref count", {"oid": oid}))
         with self.shared_ref_lock_dict[oid]:
             val = self.shared_ref_dict[oid]
             val -= 1
             
             if val == 0:
-                del self.brain[oid]
+                logger.debug(format_message("ObjectStore.put", "deleting object ref count", {"oid": oid}))
+                self.client.delete([oid])
                 del self.shared_ref_dict[oid]
                 del self.shared_ref_lock_dict[oid]
             else:
@@ -112,7 +125,7 @@ class ObjectStore:
                 
     def get(self, oid):
         logger.debug(format_message("ObjectStore.get", "getting object from shared memory store", {"oid": oid}))
-        return unjsonify(self.brain[oid])
+        return unjsonify(self.client.get(oid))
 
     
 class NodeMap:
@@ -131,7 +144,7 @@ class NodeMap:
     :type end_of_queue: any
     """
     
-    def __init__(self, manager, end_of_queue):
+    def __init__(self, manager, end_of_queue, plasma_store):
         self.meta = manager.dict()
         self.nodes = manager.dict()
         self.ready_queue = manager.Queue()
@@ -140,7 +153,10 @@ class NodeMap:
         self.output_queue = manager.Queue()
         self.end_of_queue = end_of_queue
         self.manager = manager
-        self.object_store = ObjectStore(manager)
+        self.object_store = ObjectStore(manager, plasma_store)
+
+    def init_thread(self):
+        self.object_store.init_thread()        
 
     def get_node_lock(self, node_id):
         with self.lock:
@@ -198,7 +214,7 @@ class NodeMap:
         # put results in object store
         if isinstance(result, Left):
             oid = self.object_store.put(result)
-            result_oid = lambda name: oid
+            result_oid = lambda _: oid
         else:
             result_dict = result.value
             result_oid_dict = {}
@@ -225,6 +241,9 @@ class NodeMap:
                         self.object_store.increment_ref(oid)
                     refmeta.depends -= 1
 
+        for ref in subnode_refs | refs:
+            with self.node_lock[ref]:
+                refmeta = self.meta[ref]
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     self.ready_queue.put(task)
@@ -267,9 +286,12 @@ class NodeMap:
 class DependentQueue:
     """The queue maintain a list of tasks. Before any task is added to the list, the queue is in the ready state, when the last task is compleete the queue is in the closed state. In the closed state the queue will always return end_of_queue.
     """
-    def __init__(self, manager, end_of_queue):
-        self.node_map = NodeMap(manager, end_of_queue)
+    def __init__(self, manager, end_of_queue, plasma_store = "/tmp/txparallex"):
+        self.node_map = NodeMap(manager, end_of_queue, plasma_store)
 
+    def init_thread(self):
+        self.node_map.init_thread()
+        
     def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False):
         if job_id is None:
             job_id =  str(uuid1())

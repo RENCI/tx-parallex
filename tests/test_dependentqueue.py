@@ -15,6 +15,7 @@ logger = getLogger(__name__, logging.DEBUG)
 def test_dep():
     with Manager() as manager:
         dq = DependentQueue(manager, None)
+        dq.init_thread()
 
         id3 = dq.put(3)
         id2 = dq.put(2, depends_on={id3: {"a"}})
@@ -38,6 +39,7 @@ def test_dep():
 def test_dep_error():
     with Manager() as manager:
         dq = DependentQueue(manager, None)
+        dq.init_thread()
 
         id3 = dq.put(3)
         id2 = dq.put(2, depends_on={id3: {"a"}})
@@ -54,6 +56,7 @@ def test_dep_error():
 def test_dep_error():
     with Manager() as manager:
         dq = DependentQueue(manager, None)
+        dq.init_thread()
 
         id3 = dq.put(3)
         id2 = dq.put(2, depends_on={id3: {"a"}})
@@ -73,6 +76,7 @@ def test_eoq():
     with Manager() as manager:
     
         dq = DependentQueue(manager, 2)
+        dq.init_thread()
 
         def dq_get(v):
             logger.debug("before")
@@ -101,6 +105,7 @@ def test_eoq_2():
     with Manager() as manager:
 
         dq = DependentQueue(manager, 2)
+        dq.init_thread()
 
         id3 = dq.put(3)
         
