@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 def _is(a, b):
     return a is b
 
@@ -91,9 +93,10 @@ def _if_exp(t,b,o):
 def _subscript(a, b):
     return a[b]
 
+@dataclass
 class Starred:
     def __init__(self, a):
-        self.a = a
+        self.value = a
 
 def _starred(a):
     return Starred(a)
@@ -102,7 +105,7 @@ def _list(*args):
     l = []
     for arg in args:
         if isinstance(arg, Starred):
-            l.extend(arg.a)
+            l.extend(arg.value)
         else:
             l.append(arg)
             

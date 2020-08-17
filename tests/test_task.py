@@ -13,6 +13,7 @@ from tx.parallex.task import enqueue, EndOfQueue
 from tx.parallex.io import read_from_disk
 from tx.parallex.dependentqueue import DependentQueue
 from tx.parallex.spec import dict_to_spec
+from tx.parallex.data import Starred
 from tx.functional.maybe import Just
 from tx.functional.either import Left, Right
 from tx.readable_log import getLogger, format_message
