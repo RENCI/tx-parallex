@@ -48,6 +48,7 @@ def test_enqueue():
             "inputs": [1, 2, 3]
         }
         dq = DependentQueue(manager, EndOfQueue())
+        
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
 
@@ -105,6 +106,7 @@ def test_enqueue_dependent():
         }
         data = {}
         dq = DependentQueue(manager, EndOfQueue())
+        
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True)
 
@@ -246,6 +248,7 @@ def test_level_0():
             "inputs": [1, 2, 3]
         }
         dq = DependentQueue(manager, EndOfQueue())
+        
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=0)
 
@@ -288,6 +291,7 @@ def test_level_1():
             "inputs": [1, 2, 3]
         }
         dq = DependentQueue(manager, EndOfQueue())
+        
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
 
@@ -726,6 +730,19 @@ return True
         assert ret == {"": Right(True)}
 
 
+def test_dynamic_return():
+    
+    
+        py = """
+c = tx.functional.utils.identity([0])
+return c"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right([0])}
+
+
 def test_dynamic_for_0():
     
     
@@ -740,19 +757,6 @@ for j in c:
         
         ret = start_python(3, py, data, [], True, None, 1)
         assert ret == {"0": Right(4), "1": Right(5)}
-
-
-def test_dynamic_return():
-    
-    
-        py = """
-c = tx.functional.utils.identity([0])
-return c"""
-
-        data = {}
-        
-        ret = start_python(3, py, data, [], True, None, 1)
-        assert ret == {"": Right([0])}
 
 
 def test_dynamic_for_1():
@@ -924,7 +928,38 @@ for j in tx.functional.utils.identity([1]):
         assert ret == {"0": Right(3)}
 
 
-def test_data_start():
+def test_dynamic_for_error():
+        py = """
+d = [2,3]
+c = tx.functional.utils.identity(d)
+for j in c:
+    return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert "_error" in ret
+        del ret["_error"]
+        assert ret == {}
+
+def test_dynamic_for_error_partial_return():
+        py = """
+d = [2,3]
+c = tx.functional.utils.identity(d)
+yield 1
+for j in c:
+    return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert "_error" in ret
+        del ret["_error"]
+        assert ret == {"": Right(1)}
+
+
+    
+def test_const_kwarg_start():
     
     
         py = """
@@ -937,7 +972,7 @@ return a"""
         assert ret == {"": Right(2)}
 
 
-def test_args_start():
+def test_const_arg_start():
     
     
         py = """
@@ -1063,19 +1098,15 @@ return b"""
         assert ret == {"": Right([1])}
 
         
-def test_var_in_list_lit():
-    
+def test_starred_var_in_list_lit():
     
         py = """
-a = tx.functional.utils.identity(1)
-b = (a,)
-return b"""
-
+b = [1]
+return [*b]
+"""
         data = {}
-        
         ret = start_python(3, py, data, [], True, None, 1)
-        assert ret == {"": Right((1,))}
-
+        assert ret == {"": Right([1])}
         
 def test_subscript():
     
@@ -1345,3 +1376,130 @@ return 1
         os.remove(f"{temp_path}")
 
 
+def test_jsonify_range():
+    
+    
+        py = """
+a = range(1)
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(range(1))}
+
+
+def test_jsonify_left():
+    
+    
+        py = """
+a = tx.functional.either.Left(1)
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Left(1)}
+
+        
+def test_jsonify_right():
+    
+    
+        py = """
+a = tx.functional.either.Right(1)
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(1)}
+
+        
+def test_jsonify_Starred():
+    
+    
+        py = """
+a = tx.parallex.data.Starred(1)
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right(Starred(1))}
+
+        
+def test_jsonify_json_with_field_left():
+    
+    
+        py = """
+a = {
+        "left": 1
+}
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right({"left": 1})}
+
+
+def test_jsonify_json_with_field_right():
+    
+    
+        py = """
+a = {
+        "right": 1
+}
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right({"right": 1})}
+
+
+def test_jsonify_json_with_field_starred():
+    
+    
+        py = """
+a = {
+        "starred": 1
+}
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right({"starred": 1})}
+
+
+def test_jsonify_json_with_field_range():
+    
+    
+        py = """
+a = {
+        "range": 1
+}
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right({"range": 1})}
+
+
+def test_jsonify_json_with_field_json():
+    
+    
+        py = """
+a = {
+        "json": 1
+}
+return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ret == {"": Right({"json": 1})}
+
+        

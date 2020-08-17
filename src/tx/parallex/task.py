@@ -50,7 +50,15 @@ class TaskId(AbsTask):
 class BaseTask(TaskId):
     def run(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
         logger.debug("BaseTask.run: restuls = %s", results)
-        return mbind(self.baseRun, results, subnode_results, queue)
+        try:
+            return mbind(self.baseRun, results, subnode_results, queue)
+        except Exception as e:
+            err = (str(e), traceback.format_exc())
+            logger.error(str(err))
+            queue.put_output({"_error": err})
+            queue.close()
+            raise
+            
 
     @abstractmethod
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:

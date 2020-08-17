@@ -157,7 +157,7 @@ class NodeMap:
                     self.ready_queue.put(task)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
-        self.output_queue.put(Just(ret))
+        self.put_output(ret)
             
         with self.lock:
             logger.debug("complete_node: deleting %s from self.meta", node_id)
@@ -165,8 +165,7 @@ class NodeMap:
             del self.nodes[node_id]
             logger.debug("complete_node: len(self.nodes) = %s", len(self.nodes))
             if len(self.nodes) == 0:
-                self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
-                self.output_queue.put(Nothing)
+                self.close()
 
     def get_next_ready_node(self, *args, **kwargs):
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
@@ -178,6 +177,13 @@ class NodeMap:
 
     def get_next_output(self):
         return self.output_queue.get()
+
+    def put_output(self, o):
+        self.output_queue.put(Just(o))
+
+    def close(self):
+        self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
+        self.output_queue.put(Nothing)
 
     # def empty(self):
     #     with self.lock:
@@ -205,10 +211,14 @@ class DependentQueue:
         
     def get_next_output(self):
         return self.node_map.get_next_output()
+
+    def put_output(self, o):
+        self.node_map.put_output(o)
     
     def complete(self, node_id, ret, x=Nothing):
         self.node_map.complete_node(node_id, ret, x)
 
-
+    def close(self):
+        self.node_map.close()
         
         
