@@ -55,7 +55,7 @@ class BaseTask(TaskId):
         except Exception as e:
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
-            queue.put_output({"error": err})
+            queue.put_output({"@error": err})
             queue.close()
             raise
             
