@@ -24,7 +24,7 @@ from .stack import Stack
 from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, get_task_depends_on, sort_tasks, get_dep_set_spec, get_python_task_non_dependency_params, get_task_depends_on, preproc_tasks, get_python_task_dependency_params
 import jsonpickle
 from tx.readable_log import format_message, getLogger
-from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar
+from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
@@ -48,14 +48,16 @@ class TaskId(AbsTask):
     
 @dataclass
 class BaseTask(TaskId):
+    log_error: ClassVar[bool] = False
+    
     def run(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
         logger.debug("BaseTask.run: restuls = %s", results)
         try:
-            return mbind(self.baseRun, results, subnode_results, queue)
+            return mbind(self.baseRun, results, subnode_results, queue, log_error=self.log_error)
         except Exception as e:
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
-            queue.put_output({":error:": err})
+            queue.put_output({":error:": Right(err)})
             queue.close()
             raise
             
@@ -63,7 +65,7 @@ class BaseTask(TaskId):
     @abstractmethod
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
         pass
-    
+
 
 @dataclass
 class Task(BaseTask):
@@ -89,7 +91,6 @@ class Task(BaseTask):
         except Exception as e:
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
-            queue.put_output({":error:": err})
             result = Left(err)
         return {}, Right({self.name: result})
 
@@ -108,6 +109,7 @@ class DynamicMap(BaseTask):
     subnode_env: Dict[str, str]
     ret_prefix: List[Any]
     level: int
+    log_error: ClassVar[bool] = True
 
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
         hold_id = queue.put(Hold(), is_hold=True)
@@ -126,6 +128,7 @@ class DynamicGuard(BaseTask):
     data: Dict[str, Any]
     subnode_top: Dict[str, str]
     ret_prefix: List[Any]
+    log_error: ClassVar[bool] = True
     
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
         logger.debug("DynamicCond.baseRun: before hold")
@@ -269,13 +272,15 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
         raise RuntimeError(f'unsupported spec type {spec}')
     
     
-def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], Either], params: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Any, Dict[str, Any]]:
+def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], Either], params: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue, log_error: bool) -> Tuple[Any, Dict[str, Any]]:
     resultv = {}
     subnode_resultv = {}
     for k, v in params.items():
         if isinstance(v, Left):
             resultj = v
             ret: Dict[str, Any] = {}
+            if log_error:
+                queue.put_output({":error:": Right(v.value)})
             break
         else:
             resultv[k] = v.value
@@ -284,6 +289,8 @@ def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], E
             if isinstance(v, Left):
                 resultj = v
                 ret = {}
+                if log_error:
+                    queue.put_output({":error:": Right(v.value)})
                 break
             else:
                 subnode_resultv[k] = v.value
