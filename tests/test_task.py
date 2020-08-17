@@ -49,11 +49,7 @@ def test_enqueue():
             "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
-<<<<<<< HEAD
-        
-=======
         dq.init_thread()
->>>>>>> use arrow
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
 
