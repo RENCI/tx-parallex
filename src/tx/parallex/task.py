@@ -55,7 +55,7 @@ class BaseTask(TaskId):
         except Exception as e:
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
-            queue.put_output({"@error": err})
+            queue.put_output({":error:": err})
             queue.close()
             raise
             
@@ -87,7 +87,10 @@ class Task(BaseTask):
             if not isinstance(result, Either):
                 result = Right(result)
         except Exception as e:
-            result = Left((str(e), traceback.format_exc()))
+            err = (str(e), traceback.format_exc())
+            logger.error(str(err))
+            queue.put_output({":error:": err})
+            result = Left(err)
         return {}, Right({self.name: result})
 
 

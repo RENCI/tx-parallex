@@ -939,8 +939,23 @@ for j in c:
         data = {}
         
         ret = start_python(3, py, data, [], True, None, 1)
-        assert "_error" in ret
-        del ret["_error"]
+        assert ":error:" in ret
+        del ret[":error:"]
+        assert ret == {}
+
+def test_dynamic_for_error_2():
+        py = """
+d = [2,3]
+c = tx.functional.utils.identity(d)
+a = tx.functional.utils.non_existent(d)
+for j in c:
+    return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ":error:" in ret
+        del ret[":error:"]
         assert ret == {}
 
 def test_dynamic_for_error_partial_return():
@@ -954,8 +969,8 @@ for j in c:
         data = {}
         
         ret = start_python(3, py, data, [], True, None, 1)
-        assert "_error" in ret
-        del ret["_error"]
+        assert ":error:" in ret
+        del ret[":error:"]
         assert ret == {"": Right(1)}
 
 
