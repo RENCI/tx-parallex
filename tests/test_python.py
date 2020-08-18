@@ -121,14 +121,10 @@ def test_python_to_spec4():
     py = "a = 1"
     spec = python_to_spec(py)
     assert spec == {
-        "type":"python",
+        "type":"let",
         "name": "a",
-        "mod": "tx.functional.utils",
-        "func": "identity",
-        "params": {
-            0: {
-                "data": 1
-            }
+        "obj": {
+            "data": 1
         }
     }
 
@@ -169,14 +165,10 @@ for i in c:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "y",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         }, {
             "type": "map",
@@ -207,14 +199,10 @@ with Seq:
     assert spec == {
         "type": "seq",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "x",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "name": "i"
-                }
+            "obj": {
+                "name": "i"
             }
         }]
     }
@@ -230,14 +218,10 @@ for i in c:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "y",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         }, {
             "type": "map",
@@ -281,14 +265,10 @@ for i in c:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "y",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 4
-                }
+            "obj": {
+                "data": 4
             }
         }, {
             "type": "map",
@@ -299,14 +279,10 @@ for i in c:
             "sub": {
                 "type": "top",
                 "sub": [{
-                    "type": "python",
+                    "type": "let",
                     "name": "z",
-                    "mod": "tx.functional.utils",
-                    "func": "identity",
-                    "params": {
-                        0: {
-                            "data": 390
-                        }
+                    "obj": {
+                        "data": 390
                     }
                 }, {
                     "type": "map",
@@ -400,14 +376,10 @@ for j in c:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "d",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": [2,3]
-                }
+            "obj": {
+                "data": [2,3]
             }
         }, {
             "type": "python",
@@ -462,14 +434,10 @@ else:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "z",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": True
-                }
+            "obj": {
+                "data": True
             }
         }, {
             "type": "cond",
@@ -504,14 +472,10 @@ else:
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "z",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
+            "obj": {
                 "data": False
-                }
             }
         }, {
             "type": "cond",
@@ -1063,14 +1027,10 @@ a,b,c = [1,2,3]
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "_var_0_target",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": [1,2,3]
-                }
+            "obj": {
+                "data": [1,2,3]
             }
         }, {
             "type": "python",
@@ -1124,14 +1084,10 @@ b = [a]
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1156,14 +1112,10 @@ b = [[a]]
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1198,14 +1150,10 @@ b = (a,)
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1230,14 +1178,10 @@ b = ((a,),)
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1272,14 +1216,10 @@ b = {"t":a}
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1307,14 +1247,10 @@ b = {t:1}
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "t",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": "t"
-                }
+            "obj": {
+                "data": "t"
             }
         },{
             "type": "python",
@@ -1342,14 +1278,10 @@ b = {"s":{"t":a}}
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1390,14 +1322,10 @@ b = {"s":{t:1}}
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "t",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": "t"
-                }
+            "obj": {
+                "data": "t"
             }
         },{
             "type": "python",
@@ -1438,14 +1366,10 @@ b = a
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
             "type": "python",
@@ -1470,24 +1394,16 @@ b = a
     assert spec == {
         "type": "top",
         "sub": [{
-            "type": "python",
+            "type": "let",
             "name": "a",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "data": 1
-                }
+            "obj": {
+                "data": 1
             }
         },{
-            "type": "python",
+            "type": "let",
             "name": "b",
-            "mod": "tx.functional.utils",
-            "func": "identity",
-            "params": {
-                0: {
-                    "name": "a"
-                }
+            "obj": {
+                "name": "a"
             }
         }]
     }

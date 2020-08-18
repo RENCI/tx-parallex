@@ -8,7 +8,7 @@ import logging
 from tempfile import mkstemp
 import os
 from tx.parallex.dependentqueue import DependentQueue
-from tx.parallex.task import enqueue, EndOfQueue
+from tx.parallex.task import enqueue, EndOfQueue, either_data
 from tx.parallex.process import work_on
 from tx.parallex.io import write_to_disk, read_from_disk
 from tx.parallex.python import python_to_spec
@@ -61,7 +61,7 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         with Manager() as manager:
 
             job_queue = DependentQueue(manager, EndOfQueue())
-            enqueue(dict_to_spec(spec), data, job_queue, level=level)
+            enqueue(dict_to_spec(spec), either_data(data), job_queue, level=level)
             processes = []
             for _ in range(number_of_workers):
                 p = Process(target=work_on, args=(job_queue, system_paths))

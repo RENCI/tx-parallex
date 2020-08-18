@@ -71,17 +71,14 @@
 		"type": {
 		    "enum": ["let"]
 		},
-		"var": {
+		"name": {
 		    "type": "string"
 		},
 		"obj": {
 		    "$ref": "#/definitions/term"
-		},
-		"sub": {
-		    "$ref": "#"
 		}
 	    },
-	    "required": ["type", "var", "obj", "sub"],
+	    "required": ["type", "name", "obj"],
 	    "additionalProperties": false
 	}, {
 	    "properties": {

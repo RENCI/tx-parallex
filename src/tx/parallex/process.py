@@ -21,17 +21,15 @@ from .dependentqueue import DependentQueue
 from .utils import inverse_function
 from .python import python_to_spec
 from .stack import Stack
-from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, get_task_depends_on, sort_tasks, get_python_task_non_dependency_params, get_task_depends_on, preproc_tasks, get_python_task_dependency_params
 import jsonpickle
 from tx.readable_log import format_message, getLogger
 from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
+from .dependentqueue import DependentQueue
 from .task import EndOfQueue
 
 logger = getLogger(__name__, logging.INFO)
 
-def work_on(queue, library_paths):
+def work_on(queue : DependentQueue, library_paths : List[str]) -> None:
     logger.debug("library_paths = %s", library_paths)
     sys.path.extend(library_paths)
     while True:

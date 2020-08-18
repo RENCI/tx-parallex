@@ -65,9 +65,8 @@ class MapSpec(AbsSpec):
 
 @dataclass
 class LetSpec(AbsSpec):
-    var: str
+    name: str
     obj: AbsValue
-    sub: AbsSpec
 
         
 @dataclass
@@ -108,10 +107,11 @@ def dict_to_value(x: dict) -> AbsValue:
 
 
 def dict_to_spec(x: dict) -> AbsSpec:
+    logger.debug(format_message("dict_to_spec", "convert", {"x": x}))
     ty = x["type"]
     
     if ty == "let":
-        return LetSpec(var=x["var"], obj=dict_to_value(x["obj"]), sub=dict_to_spec(x["sub"]), node_id=None)
+        return LetSpec(name=x["name"], obj=dict_to_value(x["obj"]), node_id=None)
     elif ty == "map":
         return MapSpec(coll=dict_to_value(x["coll"]), var=x["var"], sub=dict_to_spec(x["sub"]), node_id=None)
     elif ty == "cond":
@@ -129,62 +129,67 @@ def dict_to_spec(x: dict) -> AbsSpec:
 
 
 # return a set of names that a spec provides values for
-def get_dep_set_spec(spec: AbsSpec) -> Set[str]:
+def bound_names(spec: AbsSpec) -> Set[str]:
     if isinstance(spec, PythonSpec):
         return {spec.name}
+    elif isinstance(spec, LetSpec):
+        return {spec.name}
     elif isinstance(spec, SeqSpec):
-        return get_dep_set(spec.sub)
+        return bound_names_list(spec.sub)
     else:
         return set()
 
 
-def get_dep_set(subs: List[AbsSpec]) -> Set[str]:
-    return {name for v in subs for name in get_dep_set_spec(v)}
+def bound_names_list(subs: List[AbsSpec]) -> Set[str]:
+    if len(subs) == 0:
+        return set()
+    else:
+        return set.union(*map(bound_names, subs))
 
     
 # give a set of names provided by task in the current or outer scope, return a name that an AbsValue depends on if any
-def get_value_depends_on(env: Set[str], v: AbsValue) -> Maybe:
-    return Just(v.name) if isinstance(v, NameValue) and v.name in env else Nothing
+def free_names_value(v: AbsValue) -> Maybe:
+    return Just(v.name) if isinstance(v, NameValue) else Nothing
 
 
-def get_task_depends_on(env: Set[str], spec: AbsSpec):
+def compose(f, g):
+    return lambda x: f(g(x))
+
+
+def free_names(spec: AbsSpec) -> Set[str]:
     if isinstance(spec, PythonSpec):
-        return {name for v in spec.params.values() for name in maybe_to_list(get_value_depends_on(env, v))}
-    elif isinstance(spec, MapSpec):
-        dependencies = get_task_depends_on(env, spec.sub)
-        return dependencies | maybe_to_set(get_value_depends_on(env, spec.coll))
-    elif isinstance(spec, CondSpec):
-        dependencies = get_task_depends_on(env, spec.then)
-        dependencies |= get_task_depends_on(env, spec._else)
-        return dependencies | maybe_to_set(get_value_depends_on(env, spec.on))
+        params = spec.params
+        if len(params) == 0:
+            return set()
+        else:
+            return set.union(*map(compose(maybe_to_set, free_names_value), params.values()))
     elif isinstance(spec, LetSpec):
-        return get_task_depends_on(env, spec.sub)
+        return maybe_to_set(free_names_value(spec.obj))
+    elif isinstance(spec, MapSpec):
+        free_names_sub = free_names(spec.sub)
+        return (free_names_sub - {spec.var}) | maybe_to_set(free_names_value(spec.coll))
+    elif isinstance(spec, CondSpec):
+        free_names_then = free_names(spec.then)
+        free_names_else = free_names(spec._else)
+        return free_names_then | free_names_else | maybe_to_set(free_names_value(spec.on))
     elif isinstance(spec, TopSpec):
         if len(spec.sub) == 0:
             return set()
         else:
-            dep_set = get_dep_set(spec.sub)
-            return set.union(*map(partial(get_task_depends_on, env), spec.sub)) - dep_set
+            bound_names_sub = bound_names_list(spec.sub)
+            return set.union(*map(free_names, spec.sub)) - bound_names_sub
     elif isinstance(spec, SeqSpec):
-        dep_set = get_dep_set(spec.sub)
         if len(spec.sub) == 0:
             return set()
         else:
-            return set.union(*map(partial(get_task_depends_on, env), spec.sub)) - dep_set
+            bound_names_sub = bound_names_list(spec.sub)
+            return set.union(*map(free_names, spec.sub)) - bound_names_sub
     elif isinstance(spec, RetSpec):
-        return maybe_to_set(get_value_depends_on(env, spec.obj))
+        return maybe_to_set(free_names_value(spec.obj))
     else:
-        raise RuntimeError(f"get_task_depends_on: unsupported task {spec}")
+        raise RuntimeError(f"free_names: unsupported task {spec}")
 
     
-def get_python_task_dependency_params(env: Set[str], pythonspec: PythonSpec) -> Dict[str, str]:
-    return {k: name for k, v in pythonspec.params.items() for name in maybe_to_list(get_value_depends_on(env, v))}
-    
-
-def get_python_task_non_dependency_params(env: Set[str], pythonspec: PythonSpec) -> Dict[str, Any]:
-    return {k: v for k, v in pythonspec.params.items() if get_value_depends_on(env, v) == Nothing}
-
-
 no_op = TopSpec(node_id=None, sub=[])
 
 
@@ -197,15 +202,14 @@ def sort_tasks(env: Set[str], subs: List[AbsSpec]) -> List[AbsSpec]:
     copy = list(subs)
     subs_sorted = []
     visited = set(env)
-    env2 = set(env) | {name for sub in subs for name in get_dep_set_spec(sub)}
     while len(copy) > 0:
         copy2 = []
         updated = False
         for sub in copy:
-            sub_names = get_dep_set_spec(sub)
-            depends_on = get_task_depends_on(env2, sub)
-            if len(depends_on - visited) == 0:
-                visited |= sub_names
+            bound_names_sub = bound_names(sub)
+            free_names_sub = free_names(sub)
+            if len(free_names_sub - visited) == 0:
+                visited |= bound_names_sub
                 subs_sorted.append(sub)
                 updated = True
             else:
@@ -216,17 +220,18 @@ def sort_tasks(env: Set[str], subs: List[AbsSpec]) -> List[AbsSpec]:
             dep = f"visited = {visited}\n"
             for task in copy:
                 dep += f"task = {task}\n"
-                dep += f"depends_on = {get_task_depends_on(env2, task)}\n"
+                dep += f"depends_on = {free_names(task)}\n"
             raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
 
     # logger.debug(f"sort_tasks: after: {subs_sorted}")
     return subs_sorted
 
 
-def dependency_graph(spec: AbsSpec) -> Tuple[Graph, Set[str]]:
+def dependency_graph(inputs : Set[str],  spec: AbsSpec) -> Tuple[Graph, Set[str]]:
     g = Graph()
     ret_ids : Set[str] = set()
-    generate_dependency_graph(g, {}, set(), ret_ids, spec, [], None)
+    input_node = g.add_node("@input")
+    generate_dependency_graph(g, {inp : input_node for inp in inputs}, ret_ids, spec, inputs, [], None)
     return g, ret_ids
 
 
@@ -238,7 +243,7 @@ def has_ret(spec: AbsSpec):
     elif isinstance(spec, CondSpec):
         return has_ret(spec.then) or has_ret(spec._else)
     elif isinstance(spec, LetSpec):
-        return has_ret(spec.sub)
+        return False
     elif isinstance(spec, TopSpec):
         return any(map(has_ret, spec.sub))
     elif isinstance(spec, SeqSpec):
@@ -249,41 +254,44 @@ def has_ret(spec: AbsSpec):
         raise RuntimeError(f"has_ret: unsupported task {spec}")
 
 
-def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], env: Set[str], return_ids: Set[str], spec: AbsSpec, static_ret_prefix: List[str], parent_node_id: Optional[str]):
+def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], return_ids: Set[str], spec: AbsSpec, env: Set[str], static_ret_prefix: List[str], parent_node_id: Optional[str]):
+    logger.debug(format_message("generate_dependency_graph", "start", {"node_map": node_map, "spec": spec, "env": env}))
     node_id = ret_prefix_to_str(static_ret_prefix, False)
     graph.add_node(node_id, spec)
     spec.node_id = node_id
     if parent_node_id is not None:
         graph.add_edge(parent_node_id, node_id)
 
-    for name in get_dep_set_spec(spec):
+    for name in bound_names(spec):
         node_map[name] = node_id
         
     if isinstance(spec, PythonSpec):
         for p in spec.params.values():
-            get_value_depends_on(env, p).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
+            free_names_value(p).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
     elif isinstance(spec, MapSpec):
-        get_value_depends_on(env, spec.coll).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
-        generate_dependency_graph(graph, node_map, env, return_ids, spec.sub, static_ret_prefix + ["@map"], node_id)
+        free_names_value(spec.coll).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
+        env2 = env | {spec.var}
+        node_map[spec.var] = node_id
+        generate_dependency_graph(graph, node_map, return_ids, spec.sub, env2, static_ret_prefix + ["@map"], node_id)
     elif isinstance(spec, CondSpec):
-        get_value_depends_on(env, spec.on).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
-        generate_dependency_graph(graph, node_map, env, return_ids, spec.then, static_ret_prefix + ["@then"], node_id)
-        generate_dependency_graph(graph, node_map, env, return_ids, spec._else, static_ret_prefix + ["@else"], node_id)
+        free_names_value(spec.on).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
+        generate_dependency_graph(graph, node_map, return_ids, spec.then, env, static_ret_prefix + ["@then"], node_id)
+        generate_dependency_graph(graph, node_map, return_ids, spec._else, env, static_ret_prefix + ["@else"], node_id)
     elif isinstance(spec, LetSpec):
-        generate_dependency_graph(graph, node_map, env, return_ids, spec.sub, static_ret_prefix + ["@let"], node_id)
+        free_names_value(spec.obj).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
     elif isinstance(spec, TopSpec):
         subs = spec.sub
-        env_sub = env | get_dep_set(subs)
+        env2 = env | bound_names_list(subs)
         for i, task in enumerate(sort_tasks(env, subs)):
-            generate_dependency_graph(graph, node_map, env_sub, return_ids, task, static_ret_prefix + [f"@top{i}"], node_id)
+            generate_dependency_graph(graph, node_map, return_ids, task, env2, static_ret_prefix + [f"@top{i}"], node_id)
     elif isinstance(spec, SeqSpec):
-        dependencies = get_task_depends_on(env, spec)
-        for name in dependencies:
+        fns = free_names(spec)
+        for name in fns:
             graph.add_edge(node_map[name], node_id)
         if has_ret(spec):
             return_ids.add(node_id)
     elif isinstance(spec, RetSpec):
-        get_value_depends_on(env, spec.obj).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
+        free_names_value(spec.obj).rec(lambda name: graph.add_edge(node_map[name], node_id), None)
         return_ids.add(node_id)
     else:
         raise RuntimeError(f"generate_dependency_graph: unsupported task {spec}")
@@ -315,12 +323,7 @@ def remove_unreachable_tasks(dg: Graph, ret_ids: Set[str], spec: AbsSpec) -> Abs
                 spec._else = _else
                 return spec
         elif isinstance(spec, LetSpec):
-            sub = remove_unreachable_tasks(dg, ret_ids, spec.sub)
-            if sub == no_op:
-                return no_op
-            else:
-                spec.sub = sub
-                return spec
+            return spec
         elif isinstance(spec, TopSpec):
             subs = list(filter(lambda c: c != no_op, map(partial(remove_unreachable_tasks, dg, ret_ids), spec.sub)))
             spec.sub = subs
@@ -341,10 +344,10 @@ def combine_sequential_tasks(dg: Graph, ret_ids: Set[str], spec: AbsSpec) -> Abs
     return spec
 
 
-def preproc_tasks(spec):
+def preproc_tasks(inputs: Set[str], spec: AbsSpec) -> AbsSpec :
 
     spec_original = deepcopy(spec)
-    dg, ret_ids = dependency_graph(spec)
+    dg, ret_ids = dependency_graph(inputs, spec)
     # logger.debug(f"remote_unreachable_tasks: dg.edges() = {dg.edges()} ret_ids = {ret_ids}")
     spec_simplified = remove_unreachable_tasks(dg, ret_ids, spec)
     spec_simplified = propagate_constants(dg, ret_ids, spec)

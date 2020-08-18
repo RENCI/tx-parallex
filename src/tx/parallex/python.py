@@ -277,17 +277,17 @@ def python_to_spec_in_top(stmt, imported_names):
         name = target.id
         app = stmt.value
         if not is_dynamic(app):
-            func = "identity"
-            mod = "tx.functional.utils"
-            keywords = {
-                0: app
-            }
+            return [{
+                "type": "let",
+                "name": name,
+                "obj": python_ast_to_term(app)
+            }]
         elif isinstance(app, Name):
-            func = "identity"
-            mod = "tx.functional.utils"
-            keywords = {
-                0: app
-            }
+            return [{
+                "type": "let",
+                "name": name,
+                "obj": python_ast_to_term(app)
+            }]
         elif isinstance(app, Starred):
             func = "_starred"
             mod = "tx.parallex.data"

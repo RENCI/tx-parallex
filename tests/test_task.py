@@ -46,7 +46,7 @@ def test_enqueue():
             }
         }
         data = {
-            "inputs": [1, 2, 3]
+            "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
         
@@ -55,17 +55,17 @@ def test_enqueue():
 
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
-        assert n.kwargs["x"] in data["inputs"]
+        assert n.kwargs["x"] in data["inputs"].value
         assert r == {}
         dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
-        assert n.kwargs["x"] in data["inputs"]
+        assert n.kwargs["x"] in data["inputs"].value
         assert r == {}
         dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
-        assert n.kwargs["x"] in data["inputs"]
+        assert n.kwargs["x"] in data["inputs"].value
         dq.complete(f, {}, Just({"a":6}))
         n, r, sr, f = dq.get()
         print(n)
@@ -117,11 +117,11 @@ def test_enqueue_dependent():
         dq.complete(f1, {}, Right({"c":1}))
         n, r, sr, f2 = dq.get()
         print(n)
-        assert r == {f1:1}
+        assert r == {"c":1}
         dq.complete(f2, {}, Right({"b": 2}))
         n, r, sr, f = dq.get()
         print(n)
-        assert r == {f2:2}
+        assert r == {"b":2}
         dq.complete(f, {}, Right({"a": 3}))
         n, r, sr, f = dq.get()
         print(n)
@@ -246,7 +246,7 @@ def test_level_0():
                 }
         }
         data = {
-            "inputs": [1, 2, 3]
+            "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
         
@@ -289,7 +289,7 @@ def test_level_1():
                 }
         }
         data = {
-            "inputs": [1, 2, 3]
+            "inputs": Right([1, 2, 3])
         }
         dq = DependentQueue(manager, EndOfQueue())
         
@@ -414,30 +414,29 @@ def test_let():
 
     
         spec = {
-            "type":"let",
-            "var": "y",
-            "obj": {
-                "data": 1
-            },
-            "sub": {
-                "type": "top",
-                "sub": [{
-                    "type": "python",
-                    "name": "a",
-                    "mod": "tx.functional.utils",
-                    "func": "identity",
-                    "params": {
-                        0: {
-                            "name": "y"
-                        }
+            "type": "top",
+            "sub": [{
+                "type":"let",
+                "name": "y",
+                "obj": {
+                    "data": 1
+                }
+            }, {
+                "type": "python",
+                "name": "a",
+                "mod": "tx.functional.utils",
+                "func": "identity",
+                "params": {
+                    0: {
+                        "name": "y"
                     }
-                }, {
-                    "type": "ret",    
-                    "obj": {
-                        "name": "a"
-                    }
-                }]
-            }
+                }
+            }, {
+                "type": "ret",    
+                "obj": {
+                    "name": "a"
+                }
+            }]
         }
         data = {}
         ret = start(3, spec, data, [], True, None, 1)
@@ -957,19 +956,62 @@ for j in d:
         del ret[":error:"]
         assert ret == {}
 
-def test_dynamic_for_error():
+def test_for_error_level_0():
         py = """
 d = [2,3]
-c = tx.functional.utils.identity(d)
+a = tx.functional.utils.non_existent(d)
+for j in d:
+    yield a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 0)
+        assert ":error:" in ret
+        del ret[":error:"]
+        assert ret == {}
+
+def test_nested_for_error_level_0_for():
+        py = """
+d = [2,3]
+c = [5,6]
 for j in c:
-    return a"""
+    for k in d:
+        a = tx.functional.utils.non_existent()
+        return a"""
 
         data = {}
         
         ret = start_python(3, py, data, [], True, None, 1)
-        assert ":error:" in ret
-        del ret[":error:"]
-        assert ret == {}
+        assert isinstance(ret["0.0"], Left)
+
+def test_nested_for_error_level_0_if():
+        py = """
+d = [2,3]
+c = [5,6]
+for j in c:
+    if True:
+        a = tx.functional.utils.non_existent()
+        return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert isinstance(ret["0"], Left)
+
+def test_nested_for_error_level_0_if_2():
+        py = """
+d = [2,3]
+c = [5,6]
+for j in c:
+    if d == d:
+        a = tx.functional.utils.non_existent()
+        return a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert "0" in ret
+        assert isinstance(ret["0"], Left)
 
 def test_dynamic_for_error_2():
         py = """
@@ -990,6 +1032,7 @@ def test_dynamic_for_error_partial_return():
         py = """
 d = [2,3]
 c = tx.functional.utils.identity(d)
+a = tx.functional.utils.non_existent(d)
 yield 1
 for j in c:
     return a"""
