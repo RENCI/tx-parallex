@@ -217,11 +217,16 @@ def sort_tasks(env: Set[str], subs: List[AbsSpec]) -> List[AbsSpec]:
         if updated:
             copy = copy2
         else:
-            dep = f"visited = {visited}\n"
+            logger.error(format_message("sort_tasks:", "unresolved dependencies or cycle in depedencies graph", {
+                "visited": visited
+            }))
             for task in copy:
-                dep += f"task = {task}\n"
-                dep += f"depends_on = {free_names(task)}\n"
-            raise RuntimeError(f"unresolved dependencies or cycle in depedencies graph {dep}")
+                logger.error(format_message("sort_tasks:", "remaining task", {
+                    "task": task,
+                    "free_names(task)": free_names(task),
+                    "free_names(task) - visisted": free_names(task) - visited
+                }))
+            raise RuntimeError("unresolved dependencies or cycle in depedencies graph")
 
     # logger.debug(f"sort_tasks: after: {subs_sorted}")
     return subs_sorted
