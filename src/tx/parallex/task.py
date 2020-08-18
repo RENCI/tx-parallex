@@ -50,7 +50,7 @@ class TaskId(AbsTask):
 class BaseTask(TaskId):
     log_error: ClassVar[bool] = False
     
-    def run(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         logger.debug("BaseTask.run: restuls = %s", results)
         try:
             return mbind(self.baseRun, results, subnode_results, queue, log_error=self.log_error)
@@ -63,7 +63,7 @@ class BaseTask(TaskId):
             
 
     @abstractmethod
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         pass
 
 
@@ -77,7 +77,7 @@ class Task(BaseTask):
     args: Dict[int, Any]
     kwargs: Dict[str, Any]
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         try:
             mod = import_module(self.mod) if self.mod != "" else builtins
             func = getattr(mod, self.func)
@@ -111,7 +111,7 @@ class DynamicMap(BaseTask):
     level: int
     log_error: ClassVar[bool] = True
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicMap.baseRun: put hold task on queue %s", hold_id)
         enqueue(MapSpec(node_id=None, var=self.var, coll=DataValue(data=results[self.coll_name]), sub=self.spec), {**self.data, **{name: subnode_results[node_id] for name, node_id in self.subnode_env.items()}}, queue, env={}, ret_prefix=self.ret_prefix, execute_original=True, hold={hold_id}, level=self.level)
@@ -130,7 +130,7 @@ class DynamicGuard(BaseTask):
     ret_prefix: List[Any]
     log_error: ClassVar[bool] = True
     
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         logger.debug("DynamicCond.baseRun: before hold")
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicCond.baseRun: put hold task on queue %s", hold_id)
@@ -145,16 +145,16 @@ class DynamicRet(TaskId):
     obj_name: str
     ret_prefix: List[Any]
     
-    def run(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         return {ret_prefix_to_str(self.ret_prefix): results[self.obj_name]}, Right({})
 
 
 @dataclass
 class Ret(TaskId):
-    obj: Any
+    obj: Either
     ret_prefix: List[Any]
 
-    def run(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         return {ret_prefix_to_str(self.ret_prefix): self.obj}, Right({})
 
     
@@ -165,8 +165,9 @@ class Seq(BaseTask):
     depends_on: Set[str]
     ret_prefix: List[Any]
     task_id: str
+    log_error: ClassVar[bool] = True
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Any], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         data = {**{k:Right(v) for k,v in self.data.items()}, **{name: Right(results[name]) for name in self.depends_on}}
         return execute(self.spec, data, self.ret_prefix)
 
@@ -182,7 +183,7 @@ def get_task_depends_on_dict(env: Dict[str, Any], spec):
     return env
 
     
-def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tuple[Dict[str, Any], Either]:
+def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tuple[Dict[str, Either], Either]:
     logger.debug(format_message("execute", "executing sequentially", {"spec": spec, "data": data, "ret_prefix": ret_prefix}))
     if isinstance(spec, LetSpec):
         var = spec.var
@@ -233,7 +234,7 @@ def execute(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tu
         subs = spec.sub
         subs_sorted = sort_tasks(set(data.keys()), subs)
         ret = {}
-        result = {}
+        result : Dict[str, Either] = {}
         for sub in subs_sorted:
             sub_ret, sub_result = execute(sub, data, ret_prefix=ret_prefix)
             logger.debug(format_message("execute", "SeqSpec", {"sub_result": sub_result}))
@@ -318,7 +319,7 @@ def arg_spec_to_arg(data: Dict[str, Any], arg: AbsValue):
         raise RuntimeError(f"unsupported value {arg}")
 
 
-def arg_spec_to_arg_error(data: Dict[str, Either], arg: AbsValue):
+def arg_spec_to_arg_error(data: Dict[str, Either], arg: AbsValue) -> Either:
     if isinstance(arg, NameValue):
         argnamereference = arg.name
         if not argnamereference in data:

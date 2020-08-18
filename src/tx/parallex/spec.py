@@ -275,7 +275,7 @@ def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], env: Set[s
         subs = spec.sub
         env_sub = env | get_dep_set(subs)
         for i, task in enumerate(sort_tasks(env, subs)):
-            generate_dependency_graph(graph, node_map, env_sub, return_ids, task, static_ret_prefix + ["@top{i}"], node_id)
+            generate_dependency_graph(graph, node_map, env_sub, return_ids, task, static_ret_prefix + [f"@top{i}"], node_id)
     elif isinstance(spec, SeqSpec):
         dependencies = get_task_depends_on(env, spec)
         for name in dependencies:

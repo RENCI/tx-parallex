@@ -929,6 +929,34 @@ for j in tx.functional.utils.identity([1]):
         assert ret == {"0": Right(3)}
 
 
+def test_for_error():
+        py = """
+d = [2,3]
+a = tx.functional.utils.non_existent(d)
+for j in d:
+    yield a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 1)
+        assert ":error:" in ret
+        del ret[":error:"]
+        assert ret == {}
+
+def test_for_error_level_0():
+        py = """
+d = [2,3]
+a = tx.functional.utils.non_existent(d)
+for j in d:
+    yield a"""
+
+        data = {}
+        
+        ret = start_python(3, py, data, [], True, None, 0)
+        assert ":error:" in ret
+        del ret[":error:"]
+        assert ret == {}
+
 def test_dynamic_for_error():
         py = """
 d = [2,3]
