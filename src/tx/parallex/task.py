@@ -451,6 +451,10 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
         data_sub = get_submap(data, free_names_sub)
         ret_prefix_sub = ret_prefix + ["@seq"]
         task = Seq(ret_prefix_to_str(ret_prefix, False), spec, data_sub, ret_prefix=ret_prefix_sub)
+        logger.info(format_message("generate_tasks", "generating Seq task", {
+            "id": ret_prefix_to_str(ret_prefix, False),
+            "data": list(data_sub.keys())
+        }))
         enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {})
     elif isinstance(spec, LetSpec):
         name = spec.name
