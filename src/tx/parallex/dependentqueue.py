@@ -154,6 +154,7 @@ class NodeMap:
 
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
+                    logger.info(f"task added to ready queue {self.nodes[ref].node_id}")
                     self.ready_queue.put(task)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
