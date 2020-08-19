@@ -185,6 +185,7 @@ class NodeMap:
         if node.o == self.end_of_queue:
             self.ready_queue.put((node, results, subnode_results))
         node.start_time = time.time() / 1000000000
+        self.nodes[node.node_id] = node
         return node, results, subnode_results
 
     def get_next_output(self):
