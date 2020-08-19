@@ -130,7 +130,7 @@ class NodeMap:
 
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id: str, ret: Dict[str, Any], result: Either):
-        node_complete_time = time.time() / 1000000000
+        node_complete_time = time.time()
         logger.debug(format_message("complete_node", node_id, {"ret": ret, "result": result}))
         
         node = self.nodes[node_id]
@@ -159,7 +159,7 @@ class NodeMap:
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     logger.info(f"task added to ready queue {self.nodes[ref].node_id}")
-                    self.nodes[ref].ready_time = time.time() / 1000000000
+                    self.nodes[ref].ready_time = time.time()
                     self.ready_queue.put(task)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
@@ -173,7 +173,7 @@ class NodeMap:
             if len(self.nodes) == 0:
                 self.close()
 
-        node_finish_time = time.time() / 1000000000
+        node_finish_time = time.time()
         logger.info(format_message("NodeMap.complete_node", "time", {"node_id": node_id, "ready_to_start": node.start_time - node.ready_time, "start_to_complete": node_complete_time - node.start_time, "complete_to_finish": node_finish_time - node_complete_time}))
 
         
@@ -184,7 +184,7 @@ class NodeMap:
         logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
         if node.o == self.end_of_queue:
             self.ready_queue.put((node, results, subnode_results))
-        node.start_time = time.time() / 1000000000
+        node.start_time = time.time()
         self.nodes[node.node_id] = node
         return node, results, subnode_results
 
