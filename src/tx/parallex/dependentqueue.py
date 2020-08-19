@@ -201,6 +201,7 @@ class DependentQueue:
     def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False):
         if job_id is None:
             job_id =  str(uuid1())
+        logger.info(format_message("DependentQueue.put", "putting a task on the queue", {"task_id": job_id, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on, "is_hold": is_hold}))
         node = Node(o, node_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
         self.node_map.add_node(node, is_hold=is_hold)
         return node.node_id
