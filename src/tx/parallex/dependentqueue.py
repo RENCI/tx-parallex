@@ -174,7 +174,7 @@ class NodeMap:
                 self.close()
 
         node_finish_time = time.time() / 1000000000
-        logger.info(format_message("NodeMap.complete_node", "time", {"start_to_complete": node_complete_time - node.start_time, "complete_to_finish": node_finish_time - node_complete_time}))
+        logger.info(format_message("NodeMap.complete_node", "time", {"ready_to_start": node.start_time - node.ready_time, "start_to_complete": node_complete_time - node.start_time, "complete_to_finish": node_finish_time - node_complete_time}))
 
         
 
