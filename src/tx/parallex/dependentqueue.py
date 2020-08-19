@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import List, Any, Dict, Tuple, Callable, Set, Optional
 import time
+import datetime
 
 
 logger = getLogger(__name__, logging.INFO)
@@ -84,6 +85,8 @@ class NodeMap:
         self.output_queue = manager.Queue()
         self.end_of_queue = end_of_queue
         self.manager = manager
+        self.node_ready_time = manager.dict()
+        self.node_start_time = manager.dict()
 
     def get_node_lock(self, node_id):
         with self.lock:
@@ -159,7 +162,7 @@ class NodeMap:
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
                     logger.info(f"task added to ready queue {self.nodes[ref].node_id}")
-                    self.nodes[ref].ready_time = time.time()
+                    self.node_ready_time[ref] = time.time()
                     self.ready_queue.put(task)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
@@ -174,7 +177,27 @@ class NodeMap:
                 self.close()
 
         node_finish_time = time.time()
-        logger.info(format_message("NodeMap.complete_node", "time", {"node_id": node_id, "ready_to_start": node.start_time - node.ready_time, "start_to_complete": node_complete_time - node.start_time, "complete_to_finish": node_finish_time - node_complete_time}))
+        nrt = self.node_ready_time.get(node_id)
+        nst = self.node_start_time.get(node_id)
+        if nrt is None:
+            logger.info(format_message("NodeMap.complete_node", "node ready time does not exist", {
+                "node_id": node_id,
+            }))            
+        elif nst is None:
+            logger.info(format_message("NodeMap.complete_node", "node start time does not exist", {
+                "node_id": node_id,
+            }))
+        else:
+            logger.info(format_message("NodeMap.complete_node", "time", {
+                "node_id": node_id,
+                "ready_time": datetime.datetime.fromtimestamp(nrt),
+                "start_time": datetime.datetime.fromtimestamp(nst),
+                "complete_time": datetime.datetime.fromtimestamp(node_complete_time),
+                "finish_time": datetime.datetime.fromtimestamp(node_finish_time),
+                "ready_to_start": nst - nrt,
+                "start_to_complete": node_complete_time - nst,
+                "complete_to_finish": node_finish_time - node_complete_time
+            }))
 
         
 
@@ -184,8 +207,7 @@ class NodeMap:
         logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
         if node.o == self.end_of_queue:
             self.ready_queue.put((node, results, subnode_results))
-        node.start_time = time.time()
-        self.nodes[node.node_id] = node
+        self.node_start_time[node.node_id] = time.time()
         return node, results, subnode_results
 
     def get_next_output(self):
