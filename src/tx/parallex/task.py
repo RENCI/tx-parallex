@@ -409,8 +409,8 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
                 if level > 0:
                     generate_tasks(queue, subspec, data=data_sub, env=env, ret_prefix=subnode_ret_prefix_i, hold=hold, level=level-1)
                 else:
-                    free_names_sub = free_names(subspec) - {var}
-                    subnode_env = get_submap(env, free_names_sub)
+                    free_names_sub = free_names(subspec)
+                    subnode_env = get_submap(env, free_names_sub - {var})
                     subnode_data = get_submap(data_sub, free_names_sub)
                     task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, subnode_data, subnode_ret_prefix_i)
                     logger.info(format_message("generate_tasks", "generating Seq task", {
