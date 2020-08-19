@@ -415,7 +415,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
                     task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, subnode_data, subnode_ret_prefix_i)
                     logger.info(format_message("generate_tasks", "generating Seq task", {
                         "id": ret_prefix_to_str(subnode_ret_prefix_i, False),
-                        "data": dict_size(subnode_data)
+                        "data": lambda: dict_size(subnode_data)
                     }))
                     enqueue_task(queue, task, {**inverse_dict(subnode_env), **hold_dep}, {})
 
@@ -462,7 +462,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
         task = Seq(ret_prefix_to_str(ret_prefix, False), spec, data_sub, ret_prefix=ret_prefix_sub)
         logger.info(format_message("generate_tasks", "generating Seq task", {
             "id": ret_prefix_to_str(ret_prefix, False),
-            "data": dict_size(data_sub)
+            "data": lambda: dict_size(data_sub)
         }))
         enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {})
     elif isinstance(spec, LetSpec):
