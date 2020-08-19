@@ -8,13 +8,13 @@ from tx.functional.either import Left, Right
 from tx.functional.maybe import Just
 from tx.parallex.dependentqueue import DependentQueue, Node
 from tx.readable_log import getLogger
+from .test_utils import plasma_store
 
 logger = getLogger(__name__, logging.DEBUG)
 
-
-def test_dep():
+def test_dep(plasma_store):
     with Manager() as manager:
-        dq = DependentQueue(manager, None)
+        dq = DependentQueue(manager, None, plasma_store.path)
         dq.init_thread()
 
         id3 = dq.put(3)
@@ -36,9 +36,9 @@ def test_dep():
         n, r, sr, f = dq.get(block=True)
         assert n is None
 
-def test_dep_error():
+def test_dep_error(plamsa_store):
     with Manager() as manager:
-        dq = DependentQueue(manager, None)
+        dq = DependentQueue(manager, None, plasma_store.path)
         dq.init_thread()
 
         id3 = dq.put(3)
@@ -53,9 +53,9 @@ def test_dep_error():
         assert n == 2
         assert r == {"a": Left("a")}
 
-def test_dep_error():
+def test_dep_error(plasma_store):
     with Manager() as manager:
-        dq = DependentQueue(manager, None)
+        dq = DependentQueue(manager, None, plasma_store.path)
         dq.init_thread()
 
         id3 = dq.put(3)
@@ -70,12 +70,12 @@ def test_dep_error():
         assert n == 2
         assert r == {"a": Left("a")}
 
-def test_eoq():
+def test_eoq(plasma_store):
 
     
     with Manager() as manager:
     
-        dq = DependentQueue(manager, 2)
+        dq = DependentQueue(manager, 2, plasma_store.path)
         dq.init_thread()
 
         def dq_get(v):
@@ -101,10 +101,10 @@ def test_eoq():
         p.join()
         assert v.value == 2
 
-def test_eoq_2():
+def test_eoq_2(plasma_store):
     with Manager() as manager:
 
-        dq = DependentQueue(manager, 2)
+        dq = DependentQueue(manager, 2, plasma_store.path)
         dq.init_thread()
 
         id3 = dq.put(3)

@@ -13,6 +13,7 @@ from tx.parallex.process import work_on
 from tx.parallex.io import write_to_disk, read_from_disk
 from tx.parallex.python import python_to_spec
 from tx.parallex.spec import dict_to_spec
+from tx.parallex.plasma import start_plasma, stop_plasma
 from tx.readable_log import getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -58,9 +59,10 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         temp_path = output_path
 
     try:
+        plasma_store = start_plasma()
         with Manager() as manager:
-
-            job_queue = DependentQueue(manager, EndOfQueue())
+            
+            job_queue = DependentQueue(manager, EndOfQueue(), plasma_store.path)
             enqueue(dict_to_spec(spec), either_data(data), job_queue, level=level)
             processes = []
             for _ in range(number_of_workers):
@@ -76,5 +78,6 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
                 return read_from_disk(temp_path)
 
     finally:
+        stop_plasma(plasma_store)
         if output_path is None:
             os.remove(temp_path)
