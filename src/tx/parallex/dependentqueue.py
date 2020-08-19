@@ -129,7 +129,13 @@ class NodeMap:
                 logger.debug(format_message("add_node", lambda: f"add {node.node_id} to subnode refs of {node_id}", lambda: vars(meta)))
 
         if not is_hold and len(node.depends_on) == 0:
-            self.ready_queue.put((node, {}, {}))
+            self.put_ready_queue((node, {}, {}))
+
+    def put_ready_queue(self, task):
+        node, _, _ = task
+        logger.info(f"task added to ready queue {node.node_id}")
+        self.node_ready_time[node.node_id] = time.time()
+        self.ready_queue.put(task)
 
     # :param result: the result of the function, if it is Nothing then no result is returned
     def complete_node(self, node_id: str, ret: Dict[str, Any], result: Either):
@@ -161,9 +167,7 @@ class NodeMap:
 
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
                     task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
-                    logger.info(f"task added to ready queue {self.nodes[ref].node_id}")
-                    self.node_ready_time[ref] = time.time()
-                    self.ready_queue.put(task)
+                    self.put_ready_queue(task)
 
         logger.debug("complete_node: putting %s on output_queue", ret)
         self.put_output(ret)
