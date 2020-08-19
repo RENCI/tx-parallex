@@ -411,11 +411,11 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
                 else:
                     free_names_sub = free_names(subspec) - {var}
                     subnode_env = get_submap(env, free_names_sub)
-                    subnode_data = get_submap(data, free_names_sub)
-                    task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, data_sub, subnode_ret_prefix_i)
+                    subnode_data = get_submap(data_sub, free_names_sub)
+                    task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, subnode_data, subnode_ret_prefix_i)
                     logger.info(format_message("generate_tasks", "generating Seq task", {
                         "id": ret_prefix_to_str(subnode_ret_prefix_i, False),
-                        "data": dict_size(data_sub)
+                        "data": dict_size(subnode_data)
                     }))
                     enqueue_task(queue, task, {**inverse_dict(subnode_env), **hold_dep}, {})
 
