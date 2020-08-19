@@ -27,6 +27,7 @@ from tx.readable_log import format_message, getLogger
 from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
+import pickle
 
 logger = getLogger(__name__, logging.INFO)
 
@@ -354,6 +355,10 @@ def split_args(args0):
     return args, kwargs
 
 
+def dict_size(data: [str, Any]) -> Dict[str, int]:
+    return {k: len(pickle.dumps(v, -1)) for k, v in data.items()}
+    
+
 def gen_task_name(i: int, spec: AbsSpec) -> str:
     names_sub = bound_names(spec)
     return ",".join(names_sub) if len(names_sub) > 0 else str(i)
@@ -408,6 +413,10 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
                     subnode_env = get_submap(env, free_names_sub)
                     subnode_data = get_submap(data, free_names_sub)
                     task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, data_sub, subnode_ret_prefix_i)
+                    logger.info(format_message("generate_tasks", "generating Seq task", {
+                        "id": ret_prefix_to_str(subnode_ret_prefix_i, False),
+                        "data": dict_size(data_sub)
+                    }))
                     enqueue_task(queue, task, {**inverse_dict(subnode_env), **hold_dep}, {})
 
     elif isinstance(spec, CondSpec):
@@ -453,7 +462,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
         task = Seq(ret_prefix_to_str(ret_prefix, False), spec, data_sub, ret_prefix=ret_prefix_sub)
         logger.info(format_message("generate_tasks", "generating Seq task", {
             "id": ret_prefix_to_str(ret_prefix, False),
-            "data": list(data_sub.keys())
+            "data": dict_size(data_sub)
         }))
         enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {})
     elif isinstance(spec, LetSpec):
