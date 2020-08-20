@@ -32,7 +32,7 @@ with open("README.md", "r") as fh:
             "joblib==0.16.0"
         ],
         extras_require=[
-            "shm": [
+            "pimos": [
                 "pyarrow==1.0.0"
             ]
         ]
