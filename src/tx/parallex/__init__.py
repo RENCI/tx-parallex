@@ -48,7 +48,10 @@ def start_python(number_of_workers, py, data, system_paths, validate_spec, outpu
             sys.path.pop()
     return start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level, object_store)
 
-                
+
+DEFAULT_PLASMA_STORE_SIZE = 50000000
+
+
 def start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level, object_store):
     if validate_spec:
         validate(instance=spec, schema=schema)
@@ -65,7 +68,7 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
                 try:
                     import pyarrow
                     logger.info("using PlasmaStore")
-                    object_store = PlasmaStore(manager)
+                    object_store = PlasmaStore(manager, DEFAULT_PLASMA_STORE_SIZE)
                 except:
                     logger.info("using SimpleStore")
                     object_store = SimpleStore(manager)

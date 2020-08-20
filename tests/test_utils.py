@@ -11,7 +11,7 @@ def manager():
     with Manager() as manager:
         yield manager
         
-@pytest.fixture(params=[PlasmaStore, SimpleStore])
+@pytest.fixture(params=[lambda manager: PlasmaStore(manager, 100000), SimpleStore])
 def object_store(manager, request):
     p = request.param(manager)
     try:

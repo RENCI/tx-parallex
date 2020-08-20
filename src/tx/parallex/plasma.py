@@ -11,13 +11,11 @@ class PlasmaStore:
     path: str
     proc: Popen
     
-DEFAULT_PLASMA_STORE_MAX_SIZE = 50000000
-
-def start_plasma() -> PlasmaStore:
+def start_plasma(mem_size: int) -> PlasmaStore:
     
     fd, tmpfile = mkstemp()
     os.close(fd)
-    p = Popen(["plasma_store", "-m", os.environ.get("PLASMA_STORE_MAX_SIZE", str(DEFAULT_PLASMA_STORE_MAX_SIZE)), "-s", tmpfile])
+    p = Popen(["plasma_store", "-m", str(mem_size), "-s", tmpfile])
     return PlasmaStore(tmpfile, p)
 
 def stop_plasma(p: PlasmaStore) -> None:

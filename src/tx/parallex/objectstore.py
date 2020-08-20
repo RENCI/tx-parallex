@@ -44,16 +44,17 @@ class ObjectStore(ABC):
 
 
 class PlasmaStore(ObjectStore):
-    def __init__(self, manager):
+    def __init__(self, manager, mem_size):
         self.manager = manager
         self.shared_ref_dict = manager.dict()
         self.shared_ref_lock_dict = manager.dict()
+        self.mem_size = mem_size
 
     def init_thread(self):
         self.client = plasma.connect(self.plasma_store.path)
         
     def init(self):
-        self.plasma_store = start_plasma()
+        self.plasma_store = start_plasma(self.mem_size)
 
     def shutdown(self):
         stop_plasma(self.plasma_store)
