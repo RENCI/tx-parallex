@@ -30,7 +30,7 @@ pip install -r requirements.txt
 3. Test
 ```
 # run the tests, a number of test 'specs'
-PYTHONPATH=src pytest -x -vv --full-trace -s --timeout 10
+PYTHONPATH=src pytest -x -vv --full-trace -s --timeout 60
 # deactivate the environment (if desired)
 conda deactivate
 ```
