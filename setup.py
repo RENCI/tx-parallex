@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
     setuptools.setup(
         name="tx-parallex",
-        version="0.0.107",
+        version="0.0.109",
         license="MIT",
         author="Hao Xu",
         author_email="xuhao@renci.org",
@@ -35,7 +35,7 @@ with open("README.md", "r") as fh:
             "arrow": [
                 "pyarrow==1.0.0"
             ]
-        }
+        },
         classifiers=[
             "Programming Language :: Python :: 3",
             "License :: OSI Approved :: MIT License",
