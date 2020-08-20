@@ -1,10 +1,13 @@
 import logging
-import pyarrow.plasma as plasma
 from tx.readable_log import getLogger, format_message
 from .serialization import jsonify, unjsonify
 from abc import ABC, abstractmethod
 from uuid import uuid1
-from tx.parallex.plasma import start_plasma, stop_plasma
+try:
+    import pyarrow.plasma as plasma
+    from tx.parallex.plasma import start_plasma, stop_plasma
+except:
+    pass
 
 
 logger = getLogger(__name__, logging.INFO)

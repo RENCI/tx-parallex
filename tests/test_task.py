@@ -165,7 +165,7 @@ def test_execute():
         data = {
             "inputs": [1, 2, 3]
         }
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
@@ -212,7 +212,7 @@ def test_execute_dependent():
             }]
         }
         data = {}
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(3)}
 
         
@@ -334,7 +334,7 @@ def test_level_start_0():
             "inputs": [1, 2, 3]
         }
         
-        ret = start(3, spec, data, [], True, None, 0)
+        ret = start(3, spec, data, [], True, None, 0, None)
         assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
@@ -370,7 +370,7 @@ def test_level_start_1():
             "inputs": [1, 2, 3]
         }
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
@@ -389,7 +389,7 @@ for i in a:
         "inputs": [1, 2, 3]
     }
         
-    ret = start_python(3, py, data, [], True, None, 0)
+    ret = start_python(3, py, data, [], True, None, 0, None)
     assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
@@ -408,7 +408,7 @@ for i in a:
         "inputs": [1, 2, 3]
     }
         
-    ret = start_python(3, py, data, [], True, None, 1)
+    ret = start_python(3, py, data, [], True, None, 1, None)
     assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
@@ -441,7 +441,7 @@ def test_let():
             }]
         }
         data = {}
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
         
@@ -496,7 +496,7 @@ def test_start():
         }
         data = {"y": 1}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(4)}
 
 
@@ -551,7 +551,7 @@ def test_map_start():
         }
         data = {"z": [1, 2, 3]}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"0": Right(4), "1": Right(5), "2": Right(6)}
 
 
@@ -578,7 +578,7 @@ def test_cond_then_start():
         }
         data = {"z": True}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -605,7 +605,7 @@ def test_cond_else_start():
         }
         data = {"z": False}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(0)}
 
 
@@ -648,7 +648,7 @@ def test_dynamic_cond_then_start():
         }
         data = {"z": True}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -685,7 +685,7 @@ def test_dynamic_cond_else_start():
         }
         data = {"z": False}
         
-        ret = start(3, spec, data, [], True, None, 1)
+        ret = start(3, spec, data, [], True, None, 1, None)
         assert ret == {"": Right(0)}
 
 
@@ -700,7 +700,7 @@ return a"""
 
         data = {"y": 1}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(4)}
 
 
@@ -717,7 +717,7 @@ for j in d:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"0": Right(4), "1": Right(5)}
 
 
@@ -728,7 +728,7 @@ return True
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(True)}
 
 
@@ -741,7 +741,7 @@ return c"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right([0])}
 
 
@@ -757,7 +757,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"0": Right(4), "1": Right(5)}
 
 
@@ -771,7 +771,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"0": Right(0)}
 
 
@@ -787,7 +787,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"0": Right(4), "1": Right(5)}
 
 
@@ -802,7 +802,7 @@ return d+c"""
         
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         logger.debug(format_message("type_dynamic_type_error", "dynamic type error", {"ret": ret}))
         assert isinstance(ret[""], Left)
 
@@ -817,7 +817,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert isinstance(ret["0"], Left)
 
 
@@ -831,7 +831,7 @@ d = tx.functional.utils.identity(c)"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert str(excinfo.value) == "RuntimeError: unresolved dependencies or cycle in depedencies graph visited = set()"
 
 
@@ -847,7 +847,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
         
@@ -863,7 +863,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(0)}
 
         
@@ -880,7 +880,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(True)}
 
         
@@ -897,7 +897,7 @@ else:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(False)}
 
         
@@ -912,7 +912,7 @@ if identity(True):
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -926,7 +926,7 @@ for j in tx.functional.utils.identity([1]):
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"0": Right(3)}
 
 
@@ -939,7 +939,7 @@ for j in d:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ":error:" in ret
         del ret[":error:"]
         assert ret == {}
@@ -967,7 +967,7 @@ for j in d:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 0)
+        ret = start_python(3, py, data, [], True, None, 0, None)
         assert ":error:" in ret
         del ret[":error:"]
         assert ret == {}
@@ -983,7 +983,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert isinstance(ret["0.0"], Left)
 
 def test_nested_for_error_level_0_if():
@@ -997,7 +997,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert isinstance(ret["0"], Left)
 
 def test_nested_for_error_level_0_if_2():
@@ -1011,7 +1011,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert "0" in ret
         assert isinstance(ret["0"], Left)
 
@@ -1025,7 +1025,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ":error:" in ret
         del ret[":error:"]
         assert ret == {}
@@ -1041,7 +1041,7 @@ for j in c:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ":error:" in ret
         del ret[":error:"]
         assert ret == {"": Right(1)}
@@ -1057,7 +1057,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(2)}
 
 
@@ -1070,7 +1070,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(2)}
 
 
@@ -1084,7 +1084,7 @@ return b"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(3)}
 
 
@@ -1101,7 +1101,7 @@ for s in [1,2,3,4,5,6,7]:
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {f"{i}": Right(i+2) for i in range(0,7)}
 
         
@@ -1115,7 +1115,7 @@ return t"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
         
@@ -1128,7 +1128,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(True)}
 
         
@@ -1141,7 +1141,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
         
@@ -1155,7 +1155,7 @@ return b"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"t": 1})}
 
         
@@ -1169,7 +1169,7 @@ return b"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"s": 0, "t": 1})}
 
         
@@ -1183,7 +1183,7 @@ return b"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right([1])}
 
         
@@ -1194,7 +1194,7 @@ b = [1]
 return [*b]
 """
         data = {}
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right([1])}
         
 def test_subscript():
@@ -1206,7 +1206,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1217,7 +1217,7 @@ b = [1]
 return [*b]
 """
         data = {}
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right([1])}
         
 def test_starred_var_in_dict_lit():
@@ -1227,7 +1227,7 @@ b = {"t":1}
 return {**b}
 """
         data = {}
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"t":1})}
         
 def test_destructure():
@@ -1237,7 +1237,7 @@ a,b,c = [1,2,3]
 return a+b+c
 """
         data = {}
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(6)}
         
 def runtime_error():
@@ -1256,7 +1256,7 @@ return t
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert isinstance(ret[""], Left)
 
         
@@ -1268,7 +1268,7 @@ return t
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert isinstance(ret[""], Left)
 
 
@@ -1280,7 +1280,7 @@ return t - 1
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1293,7 +1293,7 @@ yield t - 1
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1306,7 +1306,7 @@ with Seq:
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1319,7 +1319,7 @@ with Seq:
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(2)}
 
 
@@ -1332,7 +1332,7 @@ with Seq:
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(2)}
 
 
@@ -1346,7 +1346,7 @@ with Seq:
 """
         data = {}
 
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1358,7 +1358,7 @@ return t
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1, None)
         assert ret == {"": Right(1)}
 
     
@@ -1370,7 +1370,7 @@ return func(1)
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1, None)
         assert ret == {"": Right(1)}
 
     
@@ -1382,7 +1382,7 @@ return func(1)
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1, None)
         assert ret == {"": Right(1)}
 
 
@@ -1393,7 +1393,7 @@ return 1
 """
         data = {}
 
-        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1)
+        ret = start_python(3, py, data, [str(pathlib.Path(__file__).parent.absolute() / "user")], True, None, 1, None)
         with pytest.raises(Exception) as excinfo:
             importlib.import_module("cd")
 
@@ -1407,7 +1407,7 @@ return 1
 """
         data = {}
 
-        ret = start_python(3, py, data, [p], True, None, 1)
+        ret = start_python(3, py, data, [p], True, None, 1, None)
         importlib.import_module("mod")
         sys.path.remove(p)
 
@@ -1422,7 +1422,7 @@ return 1
 """
             data = {}
 
-            start_python(3, py, data, [], True, temp_path, 1)
+            start_python(3, py, data, [], True, temp_path, 1, None)
             assert read_from_disk(temp_path) == {"": Right(1)}
             assert(os.path.isfile(f"{temp_path}"))
     finally:
@@ -1438,7 +1438,7 @@ return 1
 """
             data = {}
 
-            start_python(3, py, data, [], True, temp_path, 1)
+            start_python(3, py, data, [], True, temp_path, 1, None)
             assert read_from_disk(temp_path) == {"": Right(1)}
     finally:
         os.remove(f"{temp_path}")
@@ -1456,10 +1456,10 @@ return 1
 """
             data = {}
 
-            start_python(3, py, data, [], True, temp_path, 1)
+            start_python(3, py, data, [], True, temp_path, 1, None)
             assert read_from_disk(temp_path) == {"": Right(0)}
                 
-            start_python(3, py2, data, [], True, temp_path, 1)
+            start_python(3, py2, data, [], True, temp_path, 1, None)
             assert read_from_disk(temp_path) == {"": Right(1)}
     finally:
         os.remove(f"{temp_path}")
@@ -1474,7 +1474,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(range(1))}
 
 
@@ -1487,7 +1487,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Left(1)}
 
         
@@ -1500,7 +1500,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(1)}
 
         
@@ -1513,7 +1513,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right(Starred(1))}
 
         
@@ -1528,7 +1528,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"left": 1})}
 
 
@@ -1543,7 +1543,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"right": 1})}
 
 
@@ -1558,7 +1558,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"starred": 1})}
 
 
@@ -1573,7 +1573,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"range": 1})}
 
 
@@ -1588,7 +1588,7 @@ return a"""
 
         data = {}
         
-        ret = start_python(3, py, data, [], True, None, 1)
+        ret = start_python(3, py, data, [], True, None, 1, None)
         assert ret == {"": Right({"json": 1})}
 
         
