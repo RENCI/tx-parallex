@@ -31,11 +31,11 @@ with open("README.md", "r") as fh:
             "jsonpickle==1.4.1",
             "joblib==0.16.0"
         ],
-        extras_require=[
+        extras_require={
             "arrow": [
                 "pyarrow==1.0.0"
             ]
-        ]
+        }
         classifiers=[
             "Programming Language :: Python :: 3",
             "License :: OSI Approved :: MIT License",
