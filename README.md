@@ -7,8 +7,14 @@
 Python >= 3.8
 ## install
 
+Default object store
 ```
 pip install tx-parallex
+```
+
+Plasma store https://arrow.apache.org/
+```
+pip install tx-parallex[arrow]
 ```
 ## Install from source
 1. Clone the repo
