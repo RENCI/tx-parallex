@@ -79,7 +79,7 @@ class NodeMap:
     :type end_of_queue: any
     """
     
-    def __init__(self, manager, end_of_queue, plasma_store):
+    def __init__(self, manager, end_of_queue, object_store):
         self.meta = manager.dict()
         self.nodes = manager.dict()
         self.ready_queue = manager.Queue()
@@ -90,7 +90,7 @@ class NodeMap:
         self.manager = manager
         self.node_ready_time = manager.dict()
         self.node_start_time = manager.dict()
-        self.object_store = ObjectStore(manager, plasma_store)
+        self.object_store = object_store
 
     def init_thread(self):
         self.object_store.init_thread()        

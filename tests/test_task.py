@@ -18,11 +18,11 @@ from tx.functional.maybe import Just
 from tx.functional.either import Left, Right
 from tx.readable_log import getLogger, format_message
 from tx.parallex.plasma import start_plasma, stop_plasma
-from .test_utils import plasma_store
+from .test_utils import object_store, manager
 
 logger = getLogger(__name__, logging.INFO)
 
-def test_enqueue(plasma_store):
+def test_enqueue(object_store):
 
     with Manager() as manager:
     
@@ -50,7 +50,7 @@ def test_enqueue(plasma_store):
         data = {
             "inputs": Right([1, 2, 3])
         }
-        dq = DependentQueue(manager, EndOfQueue(), plasma_store.path)
+        dq = DependentQueue(manager, EndOfQueue(), object_store)
         dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)
@@ -74,7 +74,7 @@ def test_enqueue(plasma_store):
         assert isinstance(n, EndOfQueue)
 
 
-def test_enqueue_dependent(plasma_store):
+def test_enqueue_dependent(object_store):
 
     with Manager() as manager:
     
@@ -108,7 +108,7 @@ def test_enqueue_dependent(plasma_store):
             }]
         }
         data = {}
-        dq = DependentQueue(manager, EndOfQueue(), plasma_store.path)
+        dq = DependentQueue(manager, EndOfQueue(), object_store)
         dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True)
@@ -216,7 +216,7 @@ def test_execute_dependent():
         assert ret == {"": Right(3)}
 
         
-def test_level_0(plasma_store):
+def test_level_0(object_store):
 
     with Manager() as manager:
     
@@ -250,7 +250,7 @@ def test_level_0(plasma_store):
         data = {
             "inputs": Right([1, 2, 3])
         }
-        dq = DependentQueue(manager, EndOfQueue(), plasma_store.path)
+        dq = DependentQueue(manager, EndOfQueue(), object_store)
         dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=0)
@@ -259,7 +259,7 @@ def test_level_0(plasma_store):
         assert dq.node_map.ready_queue.qsize() == 3
         
         
-def test_level_1(plasma_store):
+def test_level_1(object_store):
 
     with Manager() as manager:
     
@@ -293,7 +293,7 @@ def test_level_1(plasma_store):
         data = {
             "inputs": Right([1, 2, 3])
         }
-        dq = DependentQueue(manager, EndOfQueue(), plasma_store.path)
+        dq = DependentQueue(manager, EndOfQueue(), object_store)
         dq.init_thread()
 
         enqueue(dict_to_spec(spec), data, dq, execute_original=True, level=1)

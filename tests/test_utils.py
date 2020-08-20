@@ -1,12 +1,23 @@
 import logging
+from multiprocessing import Manager
 import pytest
 from tx.readable_log import getLogger, format_message
-from tx.parallex.plasma import start_plasma, stop_plasma
+from tx.parallex.objectstore import PlasmaStore, SimpleStore
 
 logger = getLogger(__name__, logging.INFO)
 
 @pytest.fixture
-def plasma_store():
-    p = start_plasma()
-    yield p
-    stop_plasma(p)
+def manager():
+    with Manager() as manager:
+        yield manager
+        
+@pytest.fixture(params=[PlasmaStore, SimpleStore])
+def object_store(manager, request):
+    p = request.param(manager)
+    try:
+        p.init()
+        yield p
+    except:
+        p.shutdown()
+
+

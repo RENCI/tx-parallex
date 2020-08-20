@@ -13,7 +13,7 @@ from tx.parallex.process import work_on
 from tx.parallex.io import write_to_disk, read_from_disk
 from tx.parallex.python import python_to_spec
 from tx.parallex.spec import dict_to_spec
-from tx.parallex.plasma import start_plasma, stop_plasma
+from tx.parallex.objectstore import PlasmaStore
 from tx.readable_log import getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -49,7 +49,7 @@ def start_python(number_of_workers, py, data, system_paths, validate_spec, outpu
     return start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level)
 
                 
-def start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level):
+def start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level, object_store=None):
     if validate_spec:
         validate(instance=spec, schema=schema)
     if output_path is None:
@@ -59,10 +59,14 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         temp_path = output_path
 
     try:
-        plasma_store = start_plasma()
+        shutdown_object_store = False
         with Manager() as manager:
+            if object_store is None:
+                object_store = PlasmaStore(manager)
+                object_store.init()
+                shutdown_object_store = True
             
-            job_queue = DependentQueue(manager, EndOfQueue(), plasma_store.path)
+            job_queue = DependentQueue(manager, EndOfQueue(), object_store)
             enqueue(dict_to_spec(spec), either_data(data), job_queue, level=level)
             processes = []
             for _ in range(number_of_workers):
@@ -78,6 +82,7 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
                 return read_from_disk(temp_path)
 
     finally:
-        stop_plasma(plasma_store)
+        if shutdown_object_store:
+            object_store.shutdown()
         if output_path is None:
             os.remove(temp_path)
