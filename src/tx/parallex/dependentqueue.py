@@ -12,7 +12,6 @@ from typing import List, Any, Dict, Tuple, Callable, Set, Optional
 import time
 import datetime
 from ctypes import c_int
-import numpy as np
 from tx.parallex.data import Starred
 from .objectstore import ObjectStore
 

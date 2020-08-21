@@ -2,6 +2,6 @@ language: python
 python:
   - "3.8"
 install:
-  - pip install -r requirements.txt
+  - pip install tox-travis
 script:
-  - PYTHONPATH=src pytest -x -vv --full-trace -s --timeout 60
+  - tox
