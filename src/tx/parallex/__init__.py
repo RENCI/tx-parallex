@@ -26,7 +26,7 @@ def run_python(number_of_workers, pyf, dataf, system_paths=[], validate_spec=Tru
         py = s.read()
     with open(dataf) as d:
         data = yaml.safe_load(d)
-    return _start_python(number_of_workers, py, data, system_paths, validate_spec, output_path, level, object_store)
+    return start_python(number_of_workers, py, data, system_paths, validate_spec, output_path, level, object_store)
 
 
 def run(number_of_workers, specf, dataf, system_paths=[], validate_spec=True, output_path=None, level=0, object_store=None):
@@ -34,7 +34,7 @@ def run(number_of_workers, specf, dataf, system_paths=[], validate_spec=True, ou
         spec = yaml.safe_load(s)
     with open(dataf) as d:
         data = yaml.safe_load(d)
-    return _start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level, object_store)
+    return start(number_of_workers, spec, data, system_paths, validate_spec, output_path, level, object_store)
 
 
 def start_python(number_of_workers, py, data, system_paths, validate_spec, output_path, level, object_store):
