@@ -18,7 +18,7 @@ import os
 from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing, maybe
 from .dependentqueue import DependentQueue
-from .utils import inverse_function
+from .utils import inverse_function, mappend
 from .python import python_to_spec
 from .stack import Stack
 from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, free_names, bound_names, sort_tasks, preproc_tasks, maybe_to_set
@@ -273,7 +273,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         ret = {}
         for sub in subs_sorted:
             sub_ret, sub_result = evaluate(sub, data, ret_prefix=ret_prefix)
-            ret.update(sub_ret)
+            ret = mappend(ret, sub_ret)
             if isinstance(sub_result, Left):
                 return ret, sub_result
             data = {**data, **sub_result.value}
@@ -285,7 +285,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         result : Dict[str, Either] = {}
         for sub in subs_sorted:
             sub_ret, sub_result = evaluate(sub, data, ret_prefix=ret_prefix)
-            ret.update(sub_ret)
+            ret = mappend(ret, sub_ret)
             if isinstance(sub_result, Left):
                 return ret, sub_result
             data = {**data, **sub_result.value}

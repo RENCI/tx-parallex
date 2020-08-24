@@ -412,6 +412,42 @@ for i in a:
     assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
+def test_yields():
+
+    py = """
+yield [2]
+yield [3]
+yield [4]
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    
+    assert len(ret) == 1
+    assert "" in ret
+    assert isinstance(ret[""], Right)
+    assert len(ret[""].value) == 3
+    assert set(ret[""].value) == {i+2 for i in [0,1,2]}
+
+
+def test_yields_level_0():
+
+    py = """
+for i in [1]:
+    yield [2]
+    yield [3]
+    yield [4]
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ret == {f"0": Right([i+2 for i in [0,1,2]])}
+
+
 def test_let():
 
     

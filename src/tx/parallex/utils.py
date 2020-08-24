@@ -1,6 +1,9 @@
 import logging
+from tx.functional.either import Left, Right
+from tx.readable_log import getLogger, format_message
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__, logging.INFO)
+
 
 
 def inverse_function(func):
@@ -11,6 +14,29 @@ def inverse_function(func):
     return inv_func
 
 
-        
-        
+def mappend(a, b):
+    ac = str(a)
+    bc = str(b)
+    logger.info(format_message("mappend", "start", {"a": ac, "b": bc}))
+    if isinstance(a, Right) and isinstance(b, Right):
+        ret = Right(mappend(a.value, b.value))
+    elif isinstance(a, Left):
+        ret = a
+    elif isinstance(b, Left):
+        ret = b
+    elif isinstance(a, list) and isinstance(b, list):
+        a.extend(b)
+        ret = a
+    elif isinstance(a, dict) and isinstance(b, dict):
+        for k, v in b.items():
+            a[k] = mappend(a.get(k), v)
+        ret = a
+    else:
+        ret = b
+
+    logger.info(format_message("mappend", "finish", {"a": ac, "b": bc, "ret val": ret}))
+
+    return ret
+    
+
     
