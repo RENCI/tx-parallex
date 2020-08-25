@@ -17,7 +17,6 @@ def inverse_function(func):
 def mappend(a, b):
     ac = str(a)
     bc = str(b)
-    logger.info(format_message("mappend", "start", {"a": ac, "b": bc}))
     if isinstance(a, Right) and isinstance(b, Right):
         ret = Right(mappend(a.value, b.value))
     elif isinstance(a, Left):
@@ -33,8 +32,6 @@ def mappend(a, b):
         ret = a
     else:
         ret = b
-
-    logger.info(format_message("mappend", "finish", {"a": ac, "b": bc, "ret val": ret}))
 
     return ret
     
