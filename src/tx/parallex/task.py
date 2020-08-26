@@ -245,8 +245,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         subspec = spec.sub
         coll = evaluate_value(data, coll_value)
         if isinstance(coll, Left):
-            queue.put_output({":error:": Right(coll.value)})
-            return {}, Right({})
+            return {":error:": Right(coll.value)}, Right({})
         coll = coll.value
         ret = {}
         for i, row in enumerate(coll):
@@ -262,8 +261,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         else_spec = spec._else
         cond = evaluate_value(data, cond_value)
         if isinstance(cond, Left):
-            queue.put_output({":error:": Right(cond.value)})
-            return {}, Right({})
+            return {":error:": Right(cond.value)}, Right({})
         cond = cond.value
         if cond:
             return evaluate(then_spec, data, ret_prefix=ret_prefix)
