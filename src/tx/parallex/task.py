@@ -246,7 +246,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         coll = evaluate_value(data, coll_value)
         if isinstance(coll, Left):
             queue.put_output({":error:": Right(coll.value)})
-            return {}, coll
+            return {}, Right({})
         coll = coll.value
         ret = {}
         for i, row in enumerate(coll):
@@ -263,7 +263,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         cond = evaluate_value(data, cond_value)
         if isinstance(cond, Left):
             queue.put_output({":error:": Right(cond.value)})
-            return {}, cond
+            return {}, Right({})
         cond = cond.value
         if cond:
             return evaluate(then_spec, data, ret_prefix=ret_prefix)
