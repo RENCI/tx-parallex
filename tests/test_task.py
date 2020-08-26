@@ -448,6 +448,81 @@ for i in [1]:
     assert ret == {f"0": Right([i+2 for i in [0,1,2]])}
 
 
+def test_nested_yield_in_else_level_0():
+
+    py = """
+for i in [1]:
+    if False:
+        yield 2
+    else:
+        yield 3
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ret == {f"0": Right(3)}
+
+
+def test_nested_error_coll_level_0():
+
+    py = """
+for i in [0]:
+    for x in "1" + False:
+        yield 2
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ":error:" in ret
+
+
+def test_nested_error_cond_level_0():
+
+    py = """
+for i in [0]:
+    if "1" + False:
+        yield 2
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ":error:" in ret
+
+
+def test_error_coll_level_0():
+
+    py = """
+for x in "1" + False:
+    yield 2
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ":error:" in ret
+
+
+def test_error_cond_level_0():
+
+    py = """
+if "1" + False:
+    yield 2
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ":error:" in ret
+
+
 def test_let():
 
     

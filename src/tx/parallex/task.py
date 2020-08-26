@@ -205,7 +205,7 @@ class Seq(BaseTask):
     data: Dict[str, Any]
     ret_prefix: List[Any]
     task_id: str
-    log_error: ClassVar[bool] = True
+    log_error: ClassVar[bool] = False
 
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
         data = {**self.data, **{name: Right(value) for name, value in results.items()}}
@@ -245,6 +245,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         subspec = spec.sub
         coll = evaluate_value(data, coll_value)
         if isinstance(coll, Left):
+            queue.put_output({":error:": Right(coll.value)})
             return {}, coll
         coll = coll.value
         ret = {}
@@ -261,6 +262,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         else_spec = spec._else
         cond = evaluate_value(data, cond_value)
         if isinstance(cond, Left):
+            queue.put_output({":error:": Right(cond.value)})
             return {}, cond
         cond = cond.value
         if cond:
