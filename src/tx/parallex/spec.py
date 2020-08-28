@@ -1,39 +1,21 @@
-import sys
-from queue import Queue
-from uuid import uuid4
-from random import choice
-from enum import Enum
-from importlib import import_module
-from itertools import chain
-from more_itertools import roundrobin
 import logging
-import traceback
 from graph import Graph
 from functools import partial
 from copy import deepcopy
-from ctypes import c_int
-import builtins
-from joblib import Parallel, delayed, parallel_backend
-import os
 from tx.functional.either import Left, Right, Either
-from tx.functional.maybe import Just, Nothing, maybe, Maybe
-from .dependentqueue import DependentQueue
-from .utils import inverse_function
-from .python import python_to_spec
-from .stack import Stack
-import jsonpickle
+from tx.functional.maybe import Just, Nothing, Maybe
+from tx.functional.utils import compose
 from tx.readable_log import format_message, getLogger
-from typing import List, Any, Dict, Tuple, Callable, Set, Optional
+from typing import List, Any, Dict, Tuple, Callable, Set, Optional, TypeVar, Union
 from dataclasses import dataclass, field
 from abc import ABC
 
 logger = getLogger(__name__, logging.INFO)
 
-def maybe_to_list(x: Maybe) -> list:
-    return x.rec(lambda y: [y], [])
-    
 
-def maybe_to_set(x: Maybe) -> set:
+T = TypeVar("T")
+
+def maybe_to_set(x: Maybe[T]) -> Set[T]:
     return x.rec(lambda y: {y}, set())
     
 
@@ -74,7 +56,7 @@ class PythonSpec(AbsSpec):
     name: str
     mod: str
     func: str
-    params: Dict[str, AbsValue] = field(default_factory=dict)
+    params: Dict[Union[int, str], AbsValue] = field(default_factory=dict)
 
 
 @dataclass
@@ -148,12 +130,8 @@ def bound_names_list(subs: List[AbsSpec]) -> Set[str]:
 
     
 # give a set of names provided by task in the current or outer scope, return a name that an AbsValue depends on if any
-def free_names_value(v: AbsValue) -> Maybe:
+def free_names_value(v: AbsValue) -> Maybe[str]:
     return Just(v.name) if isinstance(v, NameValue) else Nothing
-
-
-def compose(f, g):
-    return lambda x: f(g(x))
 
 
 def free_names(spec: AbsSpec) -> Set[str]:
@@ -193,7 +171,7 @@ def free_names(spec: AbsSpec) -> Set[str]:
 no_op = TopSpec(node_id=None, sub=[])
 
 
-def ret_prefix_to_str(ret_prefix, exclude_str=True):
+def ret_prefix_to_str(ret_prefix: List[Any], exclude_str=True) -> str:
     return ".".join(map(str, filter(lambda x : not isinstance(x, str), ret_prefix) if exclude_str else ret_prefix))
 
 
@@ -240,7 +218,7 @@ def dependency_graph(inputs : Set[str],  spec: AbsSpec) -> Tuple[Graph, Set[str]
     return g, ret_ids
 
 
-def has_ret(spec: AbsSpec):
+def has_ret(spec: AbsSpec) -> bool:
     if isinstance(spec, PythonSpec):
         return False
     elif isinstance(spec, MapSpec):
@@ -259,7 +237,7 @@ def has_ret(spec: AbsSpec):
         raise RuntimeError(f"has_ret: unsupported task {spec}")
 
 
-def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], return_ids: Set[str], spec: AbsSpec, env: Set[str], static_ret_prefix: List[str], parent_node_id: Optional[str]):
+def generate_dependency_graph(graph: Graph, node_map: Dict[str, str], return_ids: Set[str], spec: AbsSpec, env: Set[str], static_ret_prefix: List[str], parent_node_id: Optional[str]) -> None:
     logger.debug(format_message("generate_dependency_graph", "start", {"node_map": node_map, "spec": spec, "env": env}))
     node_id = ret_prefix_to_str(static_ret_prefix, False)
     graph.add_node(node_id, spec)

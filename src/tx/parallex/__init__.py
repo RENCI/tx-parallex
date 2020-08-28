@@ -7,13 +7,13 @@ import os.path
 import logging
 from tempfile import mkstemp
 import os
-from tx.parallex.dependentqueue import DependentQueue
-from tx.parallex.task import enqueue, EndOfQueue, either_data
-from tx.parallex.process import work_on
-from tx.parallex.io import write_to_disk, read_from_disk
-from tx.parallex.python import python_to_spec
-from tx.parallex.spec import dict_to_spec
-from tx.parallex.objectstore import PlasmaStore, SimpleStore
+from .dependentqueue import DependentQueue
+from .task import enqueue, EndOfQueue, either_data
+from .process import work_on
+from .io import write_to_disk, read_from_disk
+from .python import python_to_spec
+from .spec import dict_to_spec
+from .objectstore import PlasmaStore, SimpleStore
 from tx.readable_log import getLogger
 
 logger = getLogger(__name__, logging.INFO)
@@ -66,7 +66,6 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
         with Manager() as manager:
             if object_store is None:
                 try:
-                    import pyarrow
                     logger.info("using PlasmaStore")
                     object_store = PlasmaStore(manager, DEFAULT_PLASMA_STORE_SIZE)
                 except:

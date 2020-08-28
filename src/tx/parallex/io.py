@@ -1,6 +1,5 @@
-import sys
 import logging
-from .utils import inverse_function, mappend
+from .utils import mappend
 import jsonpickle
 from tx.functional.maybe import Nothing
 from tx.readable_log import format_message, getLogger

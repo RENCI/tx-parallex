@@ -28,8 +28,7 @@ with open("README.md", "r") as fh:
             "tx-functional>=0.1.1",
             "graph-theory==2020.5.6.39102",
             "terminaltables==3.1.0",
-            "jsonpickle==1.4.1",
-            "joblib==0.16.0"
+            "jsonpickle==1.4.1"
         ],
         extras_require={
             "arrow": [

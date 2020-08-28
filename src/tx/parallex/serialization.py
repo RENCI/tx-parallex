@@ -1,5 +1,5 @@
 from tx.functional.either import Left, Right
-from tx.parallex.data import Starred
+from .data import Starred
 
 def jsonify(o):
     if isinstance(o, Left):

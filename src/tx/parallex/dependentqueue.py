@@ -1,21 +1,27 @@
-from queue import Empty, Queue
-from threading import Thread, Lock
 from uuid import uuid1
-from ctypes import c_bool
 import logging
-from tx.functional.either import Left, Right, Either
-from tx.functional.maybe import Just, Nothing
-from tx.readable_log import format_message, getLogger
+from multiprocessing import Manager
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import List, Any, Dict, Tuple, Callable, Set, Optional
 import time
 import datetime
-from ctypes import c_int
-from tx.parallex.data import Starred
+from tx.functional.either import Left, Right, Either
+from tx.functional.maybe import Just, Nothing, Maybe
+from tx.readable_log import format_message, getLogger
+from .data import Starred
 from .objectstore import ObjectStore
 
 logger = getLogger(__name__, logging.INFO)
+
+
+ReturnType = Dict[str, Either[Any, Any]]
+
+ResultType = Either[Any, ReturnType]
+
+RR = Tuple[ReturnType, ResultType]
+
+DTask = Tuple[Any, ReturnType, ReturnType, str]
 
 @dataclass
 class Node:
@@ -32,10 +38,13 @@ class Node:
     start_time: float = -1
     ready_time: float = -1
 
-    def get(self):
+    def get(self) -> Any:
         return self.o
 
-    
+
+TaskType = Tuple[Node, ReturnType, ReturnType]
+
+
 @dataclass
 class NodeMetadata:
     """
@@ -58,8 +67,8 @@ class NodeMetadata:
     subnode_refs: Set[str] = field(default_factory=set)
     depends: int = 0
     subnode_depends: int = 0
-    results: Dict[str, Either] = field(default_factory=dict)
-    subnode_results: Dict[str, Either] = field(default_factory=dict)
+    results: Dict[str, Either[Any, Any]] = field(default_factory=dict)
+    subnode_results: Dict[str, Either[Any, Any]] = field(default_factory=dict)
 
 
 class NodeMap:
@@ -78,7 +87,7 @@ class NodeMap:
     :type end_of_queue: any
     """
     
-    def __init__(self, manager, end_of_queue, object_store):
+    def __init__(self, manager: Manager, end_of_queue: Any, object_store: ObjectStore):
         self.meta = manager.dict()
         self.nodes = manager.dict()
         self.ready_queue = manager.Queue()
@@ -91,10 +100,10 @@ class NodeMap:
         self.node_start_time = manager.dict()
         self.object_store = object_store
 
-    def init_thread(self):
+    def init_thread(self) -> None:
         self.object_store.init_thread()        
 
-    def get_node_lock(self, node_id):
+    def get_node_lock(self, node_id: str):
         with self.lock:
             lock = self.node_lock.get(node_id)
             if lock is None:
@@ -104,7 +113,7 @@ class NodeMap:
             return lock
 
     @contextmanager
-    def node_metadata(self, node_id):
+    def node_metadata(self, node_id: str) -> None:
         with self.get_node_lock(node_id):
             meta = self.meta.get(node_id, NodeMetadata())
             yield meta
@@ -112,7 +121,7 @@ class NodeMap:
     
     # :param is_hold: whether the node is a hold node. a hold node will not be added to the ready queue, it is used for holding a sequence of nodes that are just added, preventing them from being added to ready queue.
     # :type is_hold: boolean
-    def add_node(self, node: Node, is_hold: bool =False):
+    def add_node(self, node: Node, is_hold: bool =False) -> None:
         with self.get_node_lock(node.node_id):
             if node.node_id in self.nodes:
                 raise RuntimeError(f"{node.node_id} is already in the map")
@@ -137,14 +146,14 @@ class NodeMap:
         if not is_hold and len(node.depends_on) == 0:
             self.put_ready_queue((node, {}, {}))
 
-    def put_ready_queue(self, task):
+    def put_ready_queue(self, task: TaskType) -> None:
         node, _, _ = task
         logger.info(f"task added to ready queue {node.node_id}")
         self.node_ready_time[node.node_id] = time.time()
         self.ready_queue.put(task)
 
     # :param result: the result of the function, if it is Nothing then no result is returned
-    def complete_node(self, node_id: str, ret: Dict[str, Any], result: Either):
+    def complete_node(self, node_id: str, ret: ReturnType, result: ResultType) -> None:
         node_complete_time = time.time()
         logger.debug(format_message("complete_node", node_id, {"ret": ret, "result": result}))
         
@@ -154,7 +163,7 @@ class NodeMap:
         subnode_refs = meta.subnode_refs
         logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
-        oids : Set[ObjectID] = set()
+        oids : Set[str] = set()
         
         # put results in object store
         if isinstance(result, Left):
@@ -237,7 +246,7 @@ class NodeMap:
 
         
 
-    def get_next_ready_node(self, *args, **kwargs):
+    def get_next_ready_node(self, *args, **kwargs) -> TaskType:
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
         node, results, subnode_results = self.ready_queue.get(*args, **kwargs)
         logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
@@ -246,13 +255,13 @@ class NodeMap:
         self.node_start_time[node.node_id] = time.time()
         return node, results, subnode_results
 
-    def get_next_output(self):
+    def get_next_output(self) -> Maybe[Any]:
         return self.output_queue.get()
 
-    def put_output(self, o):
+    def put_output(self, o: Any) -> None:
         self.output_queue.put(Just(o))
 
-    def close(self):
+    def close(self) -> None:
         self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
         self.output_queue.put(Nothing)
 
@@ -265,13 +274,13 @@ class NodeMap:
 class DependentQueue:
     """The queue maintain a list of tasks. Before any task is added to the list, the queue is in the ready state, when the last task is compleete the queue is in the closed state. In the closed state the queue will always return end_of_queue.
     """
-    def __init__(self, manager, end_of_queue, plasma_store = "/tmp/txparallex"):
-        self.node_map = NodeMap(manager, end_of_queue, plasma_store)
+    def __init__(self, manager: Manager, end_of_queue: Any, object_store: ObjectStore):
+        self.node_map = NodeMap(manager, end_of_queue, object_store)
 
-    def init_thread(self):
+    def init_thread(self) -> None:
         self.node_map.init_thread()
         
-    def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False):
+    def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False) -> str:
         if job_id is None:
             job_id =  str(uuid1())
         logger.info(format_message("DependentQueue.put", "putting a task on the queue", {"task_id": job_id, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on, "is_hold": is_hold}))
@@ -279,7 +288,7 @@ class DependentQueue:
         self.node_map.add_node(node, is_hold=is_hold)
         return node.node_id
 
-    def get(self, *args, **kwargs):
+    def get(self, *args, **kwargs) -> DTask:
         def retrieve_object(oid):
             obj = self.node_map.object_store.get(oid)
             self.node_map.object_store.decrement_ref(oid)
@@ -292,16 +301,16 @@ class DependentQueue:
         logger.debug(f"DependentQueue.get: node = %s, results = %s, subnode_results = %s", node, results, subnode_results)
         return node.get(), retrieve_objects(results), retrieve_objects(subnode_results), node.node_id
         
-    def get_next_output(self):
+    def get_next_output(self) -> Maybe[Any]:
         return self.node_map.get_next_output()
 
-    def put_output(self, o):
+    def put_output(self, o: Any) -> None:
         self.node_map.put_output(o)
     
-    def complete(self, node_id, ret, x=Nothing):
+    def complete(self, node_id: str, ret: ReturnType, x: ResultType) -> None:
         self.node_map.complete_node(node_id, ret, x)
 
-    def close(self):
+    def close(self) -> None:
         self.node_map.close()
         
         

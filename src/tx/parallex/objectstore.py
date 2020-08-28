@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from uuid import uuid1
 try:
     import pyarrow.plasma as plasma
-    from tx.parallex.plasma import start_plasma, stop_plasma
+    from .plasma import start_plasma, stop_plasma
 except:
     pass
 

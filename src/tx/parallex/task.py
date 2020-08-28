@@ -1,30 +1,16 @@
-import sys
-from queue import Queue
-from uuid import uuid1
-from random import choice
-from enum import Enum
 from importlib import import_module
 from itertools import chain
-from more_itertools import roundrobin
 import logging
 import traceback
-from graph import Graph
 from functools import partial
-from copy import deepcopy
-from ctypes import c_int
 import builtins
-from joblib import Parallel, delayed, parallel_backend
-import os
 from tx.functional.either import Left, Right, Either
-from tx.functional.maybe import Just, Nothing, maybe
-from .dependentqueue import DependentQueue
-from .utils import inverse_function, mappend
-from .python import python_to_spec
-from .stack import Stack
-from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, free_names, bound_names, sort_tasks, preproc_tasks, maybe_to_set
-import jsonpickle
+from tx.functional.maybe import Just, Nothing
+from .dependentqueue import DependentQueue, ResultType, ReturnType, RR
+from .utils import mappend
+from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, free_names, bound_names, sort_tasks, preproc_tasks
 from tx.readable_log import format_message, getLogger
-from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar
+from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar, Union
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import pickle
@@ -51,7 +37,7 @@ class IdentifiedTask(AbsTask):
 class BaseTask(IdentifiedTask):
     log_error: ClassVar[bool] = False
     
-    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
         logger.debug(format_message("BaseTask.run", "start", {"results": results}))
         try:
             return mbind(self.baseRun, results, subnode_results, queue, log_error=self.log_error)
@@ -64,7 +50,7 @@ class BaseTask(IdentifiedTask):
             
 
     @abstractmethod
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         pass
 
 
@@ -78,7 +64,7 @@ class Task(BaseTask):
     args: Dict[int, Any]
     kwargs: Dict[str, Any]
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         try:
             logger.debug(format_message("Task.baseRun", "start", {"results": results}))
             mod = import_module(self.mod) if self.mod != "" else builtins
@@ -102,7 +88,7 @@ class Hold(AbsTask):
     pass
 
 
-def either_data(results: Dict[str, Any]) -> Dict[str, Either]:
+def either_data(results: Dict[str, Any]) -> ReturnType:
     return {k: Right(v) for k, v in results.items()}
 
 
@@ -116,7 +102,7 @@ class DynamicMap(BaseTask):
     level: int
     log_error: ClassVar[bool] = True
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicMap.baseRun: put hold task on queue %s", hold_id)
         logger.debug(format_message("DynamicMap.baseRun", "enqueue call", {"results": results, "results[self.coll_name]": results[self.coll_name]}))
@@ -145,7 +131,7 @@ class DynamicGuard(BaseTask):
     level: int
     log_error: ClassVar[bool] = True
     
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicCond.baseRun: put hold task on queue %s", hold_id)
         enqueue(
@@ -168,16 +154,16 @@ class DynamicLet(BaseTask):
     name: str
     obj_name: str
     
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         return {}, Right({self.name: results[self.obj_name]})
 
 
 @dataclass
 class Let(BaseTask):
     name: str
-    obj: Either
+    obj: Either[Any, Any]
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         return {}, Right({self.name: self.obj})
 
     
@@ -186,16 +172,16 @@ class DynamicRet(IdentifiedTask):
     obj_name: str
     ret_prefix: List[Any]
     
-    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
         return {ret_prefix_to_str(self.ret_prefix): results[self.obj_name]}, Right({})
 
 
 @dataclass
 class Ret(IdentifiedTask):
-    obj: Either
+    obj: Either[Any, Any]
     ret_prefix: List[Any]
 
-    def run(self, results: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue) -> Tuple[Dict[str, Either], Either]:
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
         return {ret_prefix_to_str(self.ret_prefix): self.obj}, Right({})
 
     
@@ -207,7 +193,7 @@ class Seq(BaseTask):
     task_id: str
     log_error: ClassVar[bool] = False
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> Tuple[Dict[str, Either], Dict[str, Either]]:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         data = {**self.data, **{name: Right(value) for name, value in results.items()}}
         return evaluate(self.spec, data, self.ret_prefix)
 
@@ -221,7 +207,7 @@ def get_submap(env: Dict[str, Any], fns: Set[str]) -> Dict[str, Any]:
     return {name: env[name] for name in fns if name in env}
 
     
-def evaluate_value(data: Dict[str, Either], arg: AbsValue) -> Either:
+def evaluate_value(data: ReturnType, arg: AbsValue) -> Either[Any, Any]:
     if isinstance(arg, NameValue):
         argnamereference = arg.name
         if not argnamereference in data:
@@ -233,7 +219,7 @@ def evaluate_value(data: Dict[str, Either], arg: AbsValue) -> Either:
         return Left(f"unsupported value {arg}")
 
 
-def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> Tuple[Dict[str, Either], Either]:
+def evaluate(spec: AbsSpec, data: ReturnType, ret_prefix: List[Any]) -> RR:
     logger.debug(format_message("evaluate", "executing sequentially", {"spec": spec, "data": data, "ret_prefix": ret_prefix}))
     if isinstance(spec, LetSpec):
         name = spec.name
@@ -282,7 +268,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         subs = spec.sub
         subs_sorted = sort_tasks(set(data.keys()), subs)
         ret = {}
-        result : Dict[str, Either] = {}
+        result : ResultType = {}
         for sub in subs_sorted:
             sub_ret, sub_result = evaluate(sub, data, ret_prefix=ret_prefix)
             ret = mappend(ret, sub_ret)
@@ -321,7 +307,7 @@ def evaluate(spec: AbsSpec, data: Dict[str, Either], ret_prefix: List[Any]) -> T
         raise RuntimeError(f'unsupported spec type {spec}')
     
     
-def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], Either], params: Dict[str, Either], subnode_results: Dict[str, Either], queue: DependentQueue, log_error: bool) -> Tuple[Any, Dict[str, Any]]:
+def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], RR], params: ReturnType, subnode_results: ReturnType, queue: DependentQueue, log_error: bool) -> RR:
     resultv = {}
     subnode_resultv = {}
     for k, v in params.items():
@@ -349,13 +335,13 @@ def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], E
     return ret, resultj
 
                         
-def split_args(args0):
-    kwargs = {k: v for k, v in args0.items() if type(k) == str}
-    args = {k: v for k, v in args0.items() if type(k) == int}
+def split_args(args0: Dict[Union[int, str], Any]) -> Tuple[Dict[int, Any], Dict[str, Any]]:
+    kwargs = {k: v for k, v in args0.items() if isinstance(k, str)}
+    args = {k: v for k, v in args0.items() if isinstance(k, int)}
     return args, kwargs
 
 
-def dict_size(data: [str, Any]) -> Dict[str, int]:
+def dict_size(data: Dict[str, Any]) -> Dict[str, int]:
     return {k: len(pickle.dumps(v, -1)) for k, v in data.items()}
     
 
@@ -377,7 +363,7 @@ def inverse_dict(env: Dict[S, T]) -> Dict[T, Set[S]]:
     return dep
 
     
-def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either], env: Dict[str, str], ret_prefix: List[Any], hold: Set[str], level):
+def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: Dict[str, str], ret_prefix: List[Any], hold: Set[str], level: int) -> None:
     logger.debug(format_message("generate_tasks", "start", {"spec": spec, "env": env}))
 
     hold_dep : Dict[str, Set[str]] = {name: set() for name in hold}
@@ -513,7 +499,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: Dict[str, Either]
         raise RuntimeError(f'unsupported spec type {spec}')
 
 
-def enqueue_task(job_queue: DependentQueue, job: IdentifiedTask, depends_on: Dict[str, Set[str]], subnode_depends_on: Dict[str, Set[str]]):
+def enqueue_task(job_queue: DependentQueue, job: IdentifiedTask, depends_on: Dict[str, Set[str]], subnode_depends_on: Dict[str, Set[str]]) -> None:
     
     logger.debug(format_message("enqueue_task", "start", {"input": job, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on}))
     job_id = job.task_id
@@ -521,7 +507,7 @@ def enqueue_task(job_queue: DependentQueue, job: IdentifiedTask, depends_on: Dic
     job_queue.put(job, job_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
 
     
-def enqueue(spec: AbsSpec, data: Dict[str, Either], job_queue: DependentQueue, env: Dict[str, str]={}, ret_prefix: List[Any]=[], execute_original: bool=False, hold: Set[str]=set(), level=0):
+def enqueue(spec: AbsSpec, data: ReturnType, job_queue: DependentQueue, env: Dict[str, str]={}, ret_prefix: List[Any]=[], execute_original: bool=False, hold: Set[str]=set(), level:int=0) -> None:
     generate_tasks(job_queue, spec if execute_original else preproc_tasks(set(data.keys()), spec), data=data, env=env, ret_prefix=ret_prefix, hold=hold, level=level)
 
     
