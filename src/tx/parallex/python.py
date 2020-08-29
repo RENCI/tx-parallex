@@ -164,7 +164,7 @@ def extract_expressions_to_assignments_in_expression(expr: ast.expr, counter: t.
 
 def extract_expressions_to_assignments_in_expressions(exprs: t.List[Any], counter: t.List[Any], in_assignment:bool=False, keyword:bool=False) -> t.Tuple[t.Tuple[ast.expr, ...], t.Tuple[t.List[ast.stmt], ...]]:
     if len(exprs) == 0:
-            return [], []
+            return (), ()
     else:
         if keyword:
             return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in exprs))
@@ -290,7 +290,7 @@ def python_to_spec_in_top(stmt: ast.stmt, imported_names: t.Dict[str, str]) -> t
         elif isinstance(app, Starred):
             func = "_starred"
             mod = "tx.parallex.data"
-            keywords = {
+            keywords: t.Dict[Any, Any] = {
                 0: app.value
             }
         elif isinstance(app, Call):
@@ -305,7 +305,6 @@ def python_to_spec_in_top(stmt: ast.stmt, imported_names: t.Dict[str, str]) -> t
             else:
                 func = fqfunc.id
                 mod = imported_names[func]
-            # logger.debug(f"dep_set = {dep_set}")
         elif isinstance(app, Compare):
             if len(app.ops) > 1:
                 raise RuntimeError("unsupported multi-op compare")
@@ -436,7 +435,7 @@ def python_to_spec_in_top(stmt: ast.stmt, imported_names: t.Dict[str, str]) -> t
             "params": params
         }]
     else:
-        raise RuntimeError(f"cannot convert {app}")    
+        raise RuntimeError(f"error {app}")    
 
 
 
