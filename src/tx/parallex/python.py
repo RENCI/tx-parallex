@@ -1,25 +1,32 @@
 from importlib import import_module
 from itertools import chain
-from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With, Expr, Yield
+from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With, Expr, Yield, Pow
 import ast
 import logging
 from importlib import import_module
 import builtins
 from tx.functional.either import Left, Right, Either
 from tx.readable_log import getLogger, format_message
+from typing import Optional, Any
+import typing as t
 
 
 logger = getLogger(__name__, logging.INFO)
 
 
-def to_mod(value):
+AbsSpec = t.Dict[Any, Any]
+
+
+def to_mod(value: ast.expr) -> str:
     if isinstance(value, Name):
         return value.id
-    else:
+    elif isinstance(value, Attribute):
         return f"{to_mod(value.value)}.{value.attr}"
+    else:
+        raise RuntimeError(f"cannot get module {value}")
 
     
-def python_ast_to_value(expr):
+def python_ast_to_value(expr: Optional[ast.expr]) -> Optional[Any]:
     if expr is None:
         return None
     elif isinstance(expr, List):
@@ -32,7 +39,7 @@ def python_ast_to_value(expr):
         raise RuntimeError(f"cannot convert ast {expr} to value")
 
     
-def python_ast_to_term(expr):
+def python_ast_to_term(expr: ast.expr) -> t.Dict[str, Any]:
     if isinstance(expr, Name):
         return {
             "name": expr.id
@@ -44,28 +51,28 @@ def python_ast_to_term(expr):
 
     
 # extract expression in for, if, parameters into assignment
-def extract_expressions_to_assignments(stmts, counter=[]):
+def extract_expressions_to_assignments(stmts: t.List[ast.stmt], counter: t.List[Any]=[]) -> t.List[ast.stmt]:
     return list(chain(*(extract_expressions_to_assignments_in_statement(stmt, counter + [i]) for i, stmt in enumerate(stmts))))
 
 
-def extract_assignments_from_destructure(target, value, type_comments, counter):
+def extract_assignments_from_destructure(target: ast.expr, value: ast.expr, type_comments: Optional[str], counter: t.List[Any]) -> t.List[ast.stmt]:
     if isinstance(target, Name):
         return [Assign([target], value, type_comments)]
     elif isinstance(target, Tuple):
         name = generate_variable_name(counter)
-        return [Assign([Name(id=name, ctx=Store())], value)] + list(chain(*(extract_assignments_from_destructure(elt, Subscript(value=Name(id=name, ctx=Load()), slice=Index(value=Constant(value=i)), ctx=Load()), None, counter + [i]) for i, elt in enumerate(target.elts))))
+        return [Assign([Name(id=name, ctx=Store())], value), *chain(*(extract_assignments_from_destructure(elt, Subscript(value=Name(id=name, ctx=Load()), slice=Index(value=Constant(value=i)), ctx=Load()), None, counter + [i]) for i, elt in enumerate(target.elts)))]
     else:
         raise RuntimeError(f"unsupported assignment to {target}")
     
     
 # assuming that var with name _var[x] is not used
 # todo: check for var name
-def extract_expressions_to_assignments_in_statement(stmt, counter):
+def extract_expressions_to_assignments_in_statement(stmt: ast.stmt, counter: t.List[Any]) -> t.List[ast.stmt]:
     if isinstance(stmt, ImportFrom):
         return [stmt]
     if isinstance(stmt, For):
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.iter, counter)
-        stmt_eta = For(target=stmt.target, iter=expr, body=extract_expressions_to_assignments(stmt.body, counter), orelse=stmt.orelse, type_comment=stmt.type_comment)
+        stmt_eta: ast.stmt = For(target=stmt.target, iter=expr, body=extract_expressions_to_assignments(stmt.body, counter), orelse=stmt.orelse, type_comment=stmt.type_comment)
         return assigns + [stmt_eta]
     elif isinstance(stmt, If):
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.test, counter)
@@ -74,17 +81,19 @@ def extract_expressions_to_assignments_in_statement(stmt, counter):
     if isinstance(stmt, With):
         stmt_eta = With(items=stmt.items, body=extract_expressions_to_assignments(stmt.body, counter), type_comment=stmt.type_comment)
         return [stmt_eta]
-    elif isinstance(stmt, Expr) and isinstance(stmt.value, Yield):
+    elif isinstance(stmt, Expr) and isinstance(stmt.value, Yield) and stmt.value.value is not None:
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value.value, counter)
         stmt_eta = Expr(value=Yield(value=expr))
         return assigns + [stmt_eta]
-    else:
+    elif isinstance(stmt, Assign):
         expr, assigns = extract_expressions_to_assignments_in_expression(stmt.value, counter, in_assignment=True)
-        stmt_eta = extract_assignments_from_destructure(stmt.targets[0], expr, stmt.type_comment, counter + ["target"])
-        return assigns + stmt_eta
+        stmt_etas = extract_assignments_from_destructure(stmt.targets[0], expr, stmt.type_comment, counter + ["target"])
+        return assigns + stmt_etas
+    else:
+        raise RuntimeError(f"cannot extract expression from {stmt}")
     
     
-def extract_expressions_to_assignments_in_expression(expr, counter, in_assignment=False):
+def extract_expressions_to_assignments_in_expression(expr: ast.expr, counter: t.List[Any], in_assignment: bool = False) -> t.Tuple[ast.expr, t.List[ast.stmt]]:
     if not is_dynamic(expr):
         return expr, []
     elif isinstance(expr, Name):
@@ -94,7 +103,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         assigns = list(chain(*assign_lists))
         keywords_exprs, assign_lists_keywords = extract_expressions_to_assignments_in_expressions([(kw.arg, kw.value) for kw in expr.keywords], counter, keyword=True)
         assigns_keywords = list(chain(*assign_lists_keywords))
-        expr_eta = Call(func=expr.func, ctx=Load(), args=list(args), keywords=[keyword(arg=kw.arg, value=kw_expr) for kw, kw_expr in zip(expr.keywords, keywords_exprs)])
+        expr_eta: ast.expr = Call(func=expr.func, ctx=Load(), args=list(args), keywords=[keyword(arg=kw.arg, value=kw_expr) for kw, kw_expr in zip(expr.keywords, keywords_exprs)])
         assigns = assigns + assigns_keywords
     elif isinstance(expr, Compare):
         left, assigns_left = extract_expressions_to_assignments_in_expression(expr.left, counter + ["left"])
@@ -119,7 +128,7 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         orelse, assigns_orelse = extract_expressions_to_assignments_in_expression(expr.orelse, counter + ["orelse"])
         expr_eta = IfExp(test=test, body=body, orelse=orelse)
         assigns = assigns_test + assigns_body + assigns_orelse
-    elif isinstance(expr, Subscript):
+    elif isinstance(expr, Subscript) and isinstance(expr.slice, Index):
         value, assigns_value = extract_expressions_to_assignments_in_expression(expr.value, counter + ["value"])
         slice, assigns_slice = extract_expressions_to_assignments_in_expression(expr.slice.value, counter + ["slice.value"])
         expr_eta = Subscript(value=value, slice=Index(value=slice), ctx=expr.ctx)
@@ -153,9 +162,9 @@ def extract_expressions_to_assignments_in_expression(expr, counter, in_assignmen
         return expr, assigns + [assign]
             
 
-def extract_expressions_to_assignments_in_expressions(exprs, counter, in_assignment=False, keyword=False):
+def extract_expressions_to_assignments_in_expressions(exprs: t.List[Any], counter: t.List[Any], in_assignment:bool=False, keyword:bool=False) -> t.Tuple[t.Tuple[ast.expr, ...], t.Tuple[t.List[ast.stmt], ...]]:
     if len(exprs) == 0:
-            return exprs, []
+            return [], []
     else:
         if keyword:
             return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in exprs))
@@ -163,22 +172,22 @@ def extract_expressions_to_assignments_in_expressions(exprs, counter, in_assignm
             return zip(*(extract_expressions_to_assignments_in_expression(expr, counter + [i], in_assignment=in_assignment) for i, expr in enumerate(exprs)))
 
         
-def is_dynamic_args(exprs):
+def is_dynamic_args(exprs: t.List[ast.expr]) -> bool:
     return any(is_dynamic(expr) for expr in exprs)
 
 
-def is_dynamic(expr):
+def is_dynamic(expr: ast.expr) -> bool:
     return isinstance(expr, Name) or isinstance(expr, Call) or isinstance(expr, BinOp) or isinstance(expr, BoolOp) or isinstance(expr, UnaryOp) or isinstance(expr, Compare) or isinstance(expr, IfExp) or isinstance(expr, Subscript) or (isinstance(expr, List) and is_dynamic_args(expr.elts)) or (isinstance(expr, Tuple) and is_dynamic_args(expr.elts)) or (isinstance(expr, Dict) and (is_dynamic_args(expr.keys) or is_dynamic_args(expr.values))) or (isinstance(expr, Starred) and is_dynamic(expr.value))
 
 
-def generate_expression_and_assignment(expr_eta, counter):
+def generate_expression_and_assignment(expr_eta: ast.expr, counter: t.List[Any]) -> t.Tuple[Name, Assign]:
     a = generate_variable_name(counter)
     return Name(id=a, ctx=Load()), Assign(targets=[Name(id=a, ctx=Store())], value=expr_eta, type_comment=None)
 
-def generate_variable_name(counter):
+def generate_variable_name(counter: t.List[str]) -> str:
     return f"_var_{'_'.join(map(str, counter))}"
 
-def canonicalize(stmt):
+def canonicalize(stmt: ast.stmt) -> ast.stmt:
     if isinstance(stmt, ImportFrom):
         return stmt
     if isinstance(stmt, For):
@@ -195,11 +204,11 @@ def canonicalize(stmt):
         return stmt
     
     
-def canonicalize_list(stmts):
+def canonicalize_list(stmts: t.List[ast.stmt]) -> t.List[ast.stmt]:
     return list(map(canonicalize, stmts))
 
 
-def python_to_spec(py):
+def python_to_spec(py: str) -> AbsSpec:
     t = parse(py)
     body = t.body
 
@@ -209,20 +218,20 @@ def python_to_spec(py):
     return python_to_spec_seq(body_eta)
     
 
-def python_to_spec_seq(stmts, imported_names = {}):
+def python_to_spec_seq(stmts: t.List[ast.stmt], imported_names: t.Dict[str, str] = {}) -> AbsSpec:
     importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
     imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
     logger.debug(f"imported_names2 = {imported_names2}")
-    assigns = [stmt for stmt in stmts if isinstance(stmt, Assign)]
-    fors = [stmt for stmt in stmts if isinstance(stmt, For)]
-    ifs = [stmt for stmt in stmts if isinstance(stmt, If)]
-    withs = [stmt for stmt in stmts if isinstance(stmt, With)]
-    returns = [stmt for stmt in stmts if isinstance(stmt, Expr) and isinstance(stmt.value, Yield)]
+    assigns: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, Assign)]
+    fors: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, For)]
+    ifs: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, If)]
+    withs: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, With)]
+    returns: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, Expr) and isinstance(stmt.value, Yield)]
     
     return python_to_top_spec(assigns + fors + ifs + withs + returns, imported_names2)
 
 
-def python_to_top_spec(body, imported_names):
+def python_to_top_spec(body: t.List[ast.stmt], imported_names: t.Dict[str, str]) -> AbsSpec:
     specs = list(chain.from_iterable(python_to_spec_in_top(stmt, imported_names) for stmt in body))
     if len(specs) == 1:
         return specs[0]
@@ -232,8 +241,8 @@ def python_to_top_spec(body, imported_names):
             "sub": specs
         }
 
-def python_to_spec_in_top(stmt, imported_names):
-    if isinstance(stmt, For):
+def python_to_spec_in_top(stmt: ast.stmt, imported_names: t.Dict[str, str]) -> t.List[AbsSpec]:
+    if isinstance(stmt, For) and isinstance(stmt.target, Name):
         coll_name = python_ast_to_term(stmt.iter)
         return [{
             "type": "map",
@@ -249,7 +258,7 @@ def python_to_spec_in_top(stmt, imported_names):
             "then": python_to_spec_seq(stmt.body, imported_names),
             "else": python_to_spec_seq(stmt.orelse, imported_names),
         }]
-    if isinstance(stmt, With):
+    elif isinstance(stmt, With):
         return [{
             "type": "seq",
             "sub": list(chain.from_iterable(python_to_spec_in_top(stmt, imported_names) for stmt in stmt.body))
@@ -261,7 +270,7 @@ def python_to_spec_in_top(stmt, imported_names):
             "obj": python_ast_to_term(ret_val)
         }]
             
-    else:
+    elif isinstance(stmt, Assign):
         targets = stmt.targets
         target = targets[0]
         name = target.id
@@ -328,61 +337,61 @@ def python_to_spec_in_top(stmt, imported_names):
                 func = "_not_in"
                 
         elif isinstance(app, BinOp):
-            op = app.op
+            bop = app.op
             keywords = {
                 0: app.left,
                 1: app.right
             }
             mod = "tx.parallex.data"
-            if isinstance(op, Add):
+            if isinstance(bop, Add):
                 func = "_add"
-            elif isinstance(op, Sub):
+            elif isinstance(bop, Sub):
                 func = "_sub"
-            elif isinstance(op, Mult):
+            elif isinstance(bop, Mult):
                 func = "_mult"
-            elif isinstance(op, Div):
+            elif isinstance(bop, Div):
                 func = "_div"
-            elif isinstance(op, MatMult):
+            elif isinstance(bop, MatMult):
                 func = "_mat_mult"
-            elif isinstance(op, Mod):
+            elif isinstance(bop, Mod):
                 func = "_mod"
-            elif isinstance(op, Pow):
+            elif isinstance(bop, Pow):
                 func = "_pow"
-            elif isinstance(op, LShift):
+            elif isinstance(bop, LShift):
                 func = "_l_shift"
-            elif isinstance(op, RShift):
+            elif isinstance(bop, RShift):
                 func = "_r_shift"
-            elif isinstance(op, BitOr):
+            elif isinstance(bop, BitOr):
                 func = "_bit_or"
-            elif isinstance(op, BitXor):
+            elif isinstance(bop, BitXor):
                 func = "_bit_xor"
-            elif isinstance(op, BitAnd):
+            elif isinstance(bop, BitAnd):
                 func = "_bit_and"
-            elif isinstance(op, FloorDiv):
+            elif isinstance(bop, FloorDiv):
                 func = "_floor_div"
                 
         elif isinstance(app, UnaryOp):
-            op = app.op
+            unaop = app.op
             keywords = {
                 0: app.operand
             }
             mod = "tx.parallex.data"
-            if isinstance(op, Invert):
+            if isinstance(unaop, Invert):
                 func = "_invert"
-            elif isinstance(op, Not):
+            elif isinstance(unaop, Not):
                 func = "_not"
-            elif isinstance(op, UAdd):
+            elif isinstance(unaop, UAdd):
                 func = "_u_add"
-            elif isinstance(op, USub):
+            elif isinstance(unaop, USub):
                 func = "_u_sub"
                 
         elif isinstance(app, BoolOp):
-            op = app.op
+            boolop = app.op
             keywords = {i: value for i, value in enumerate(app.values)}
             mod = "tx.parallex.data"
-            if isinstance(op, And):
+            if isinstance(boolop, And):
                 func = "_and"
-            elif isinstance(op, Or):
+            elif isinstance(boolop, Or):
                 func = "_or"
 
         elif isinstance(app, IfExp):
@@ -394,7 +403,7 @@ def python_to_spec_in_top(stmt, imported_names):
             mod = "tx.parallex.data"
             func = "_if_exp"
 
-        elif isinstance(app, Subscript):
+        elif isinstance(app, Subscript) and isinstance(app.slice, Index):
             keywords = {
                 0: app.value,
                 1: app.slice.value
@@ -426,6 +435,8 @@ def python_to_spec_in_top(stmt, imported_names):
             "func": func,
             "params": params
         }]
+    else:
+        raise RuntimeError(f"cannot convert {app}")    
 
 
 
