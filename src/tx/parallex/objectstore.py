@@ -6,8 +6,9 @@ from uuid import uuid1
 try:
     import pyarrow.plasma as plasma
     from .plasma import start_plasma, stop_plasma
-except:
-    pass
+except ImportError as e:
+    if e.message != 'No module named pyarrow.plasma':
+        raise
 
 
 logger = getLogger(__name__, logging.INFO)
