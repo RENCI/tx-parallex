@@ -480,6 +480,21 @@ for i in [0]:
     assert ":error:" in ret
 
 
+def test_seq_error():
+
+    py = """
+c = "1" + False
+for i in [0]:
+    yield c
+"""
+
+    data = {
+    }
+        
+    ret = start_python(3, py, data, [], True, None, 0, None)
+    assert ":error:" in ret
+
+
 def test_nested_error_cond_level_0():
 
     py = """
