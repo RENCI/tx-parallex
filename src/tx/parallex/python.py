@@ -7,7 +7,6 @@ from importlib import import_module
 import builtins
 from tx.functional.either import Left, Right, Either
 from tx.readable_log import getLogger, format_message
-import typing as t
 
 
 logger = getLogger(__name__, logging.INFO)
