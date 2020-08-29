@@ -191,7 +191,7 @@ class Seq(BaseTask):
     data: Dict[str, Any]
     ret_prefix: List[Any]
     task_id: str
-    log_error: ClassVar[bool] = False
+    log_error: ClassVar[bool] = True
 
     def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
         data = {**self.data, **{name: Right(value) for name, value in results.items()}}
