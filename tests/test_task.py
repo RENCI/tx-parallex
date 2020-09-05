@@ -393,7 +393,7 @@ for i in a:
     assert ret == {f"{i}": Right(i+2) for i in [0,1,2]}
 
 
-def test_dynamci_level_start_1():
+def test_dynamic_level_start_1():
 
     py = """
 from tx.functional.utils import identity

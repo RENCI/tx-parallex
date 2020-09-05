@@ -387,7 +387,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             coll_source = env[coll_name]
             task: IdentifiedTask = DynamicMap(ret_prefix_to_str(subnode_ret_prefix, False), var, coll_name, subspec, subnode_data, ret_prefix, level)
             dep = {coll_source: {coll_name}}
-            enqueue_task(queue, task, {**dep, **hold_dep}, inverse_dict(subnode_env))
+            enqueue_task(queue, task, {**dep, **hold_dep}, inverse_dict(subnode_env), set())
         else:
             coll = evaluate_value(data, coll_value)
 
@@ -407,7 +407,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
                         "id": ret_prefix_to_str(subnode_ret_prefix_i, False),
                         "data": lambda: dict_size(subnode_data)
                     }))
-                    enqueue_task(queue, task, {**inverse_dict(subnode_env), **hold_dep}, {})
+                    enqueue_task(queue, task, {**inverse_dict(subnode_env), **hold_dep}, {}, set())
 
     elif isinstance(spec, CondSpec):
         cond_value = spec.on
@@ -421,7 +421,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             subnode_data = get_submap(data, free_names_sub)
             task = DynamicGuard(ret_prefix_to_str(subnode_ret_prefix, False), cond_name, then_spec, else_spec, subnode_data, ret_prefix, level)
             dep = {cond_source: {cond_name}}
-            enqueue_task(queue, task, {**dep, **hold_dep}, inverse_dict(subnode_env))
+            enqueue_task(queue, task, {**dep, **hold_dep}, inverse_dict(subnode_env), set())
         else:
             cond = evaluate_value(data, cond_value)
 
@@ -446,6 +446,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             generate_tasks(queue, sub, data=data, env=env_sub, ret_prefix=subnode_ret_prefix + [task_name], hold=hold, level=level)
     elif isinstance(spec, SeqSpec):
         free_names_sub = free_names(spec)
+        bound_names_sub = bound_names(spec)
         env_sub = get_submap(env, free_names_sub)
         data_sub = get_submap(data, free_names_sub)
         ret_prefix_sub = ret_prefix + ["@seq"]
@@ -454,7 +455,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             "id": ret_prefix_to_str(ret_prefix, False),
             "data": lambda: dict_size(data_sub)
         }))
-        enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {})
+        enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {}, bound_names_sub)
     elif isinstance(spec, LetSpec):
         name = spec.name
         obj_value = spec.obj
@@ -462,11 +463,11 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             obj_source = env[obj_name]
             task = DynamicLet(env[name], name, obj_name)
             dep = {obj_source: {obj_name}}
-            enqueue_task(queue, task, {**dep, **hold_dep}, {})
+            enqueue_task(queue, task, {**dep, **hold_dep}, {}, set())
         else:
             obj = evaluate_value(data, obj_value)
             task = Let(env[name], name, obj)
-            enqueue_task(queue, task, {}, {})
+            enqueue_task(queue, task, {}, {}, {name})
     elif isinstance(spec, PythonSpec):
         name = spec.name
         mod = spec.mod
@@ -485,7 +486,7 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
         free_names_sub = free_names(spec)
         env_sub = get_submap(env, free_names_sub)
         task = Task(env[name], name, mod, func, args_spec, kwargs_spec, args, kwargs)
-        enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {})
+        enqueue_task(queue, task, {**inverse_dict(env_sub), **hold_dep}, {}, {name})
         logger.debug(format_message("generate_tasks", "enqueue task", {"task": lambda: vars(task), "env[name]": lambda: env[name]})) 
     elif isinstance(spec, RetSpec):
         obj_value = spec.obj
@@ -494,21 +495,21 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             obj_source = env[obj_name]
             task = DynamicRet(ret_prefix_to_str(subnode_ret_prefix, False), obj_name, subnode_ret_prefix)
             dep = {obj_source:{obj_name}}
-            enqueue_task(queue, task, {**dep, **hold_dep}, {})
+            enqueue_task(queue, task, {**dep, **hold_dep}, {}, set())
         else:
             obj = evaluate_value(data, obj_value)
             task = Ret(ret_prefix_to_str(subnode_ret_prefix, False), obj, subnode_ret_prefix)
-            enqueue_task(queue, task, hold_dep, {})
+            enqueue_task(queue, task, hold_dep, {}, set())
     else:
         raise RuntimeError(f'unsupported spec type {spec}')
 
 
-def enqueue_task(job_queue: DependentQueue, job: IdentifiedTask, depends_on: Dict[str, Set[str]], subnode_depends_on: Dict[str, Set[str]]) -> None:
+def enqueue_task(job_queue: DependentQueue, job: IdentifiedTask, depends_on: Dict[str, Set[str]], subnode_depends_on: Dict[str, Set[str]], names: Set[str]) -> None:
     
     logger.debug(format_message("enqueue_task", "start", {"input": job, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on}))
     job_id = job.task_id
     logger.debug(format_message("enqueue_task", job_id, {"depends_on": depends_on, "subnode_depends_on": subnode_depends_on}))
-    job_queue.put(job, job_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
+    job_queue.put(job, job_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on, names=names)
 
     
 def enqueue(spec: AbsSpec, data: ReturnType, job_queue: DependentQueue, env: Dict[str, str]={}, ret_prefix: List[Any]=[], execute_original: bool=False, hold: Set[str]=set(), level:int=0) -> None:

@@ -4,7 +4,7 @@ from .serialization import jsonify, unjsonify
 from abc import ABC, abstractmethod
 from multiprocessing import Manager
 from uuid import uuid1
-from typing import Any
+from typing import Any, Dict
 try:
     import pyarrow.plasma as plasma
     from .plasma import start_plasma, stop_plasma
@@ -29,7 +29,7 @@ class ObjectStore(ABC):
         pass
         
     @abstractmethod
-    def put(self, o: Any) -> str :
+    def put(self, oid: str, o: Any) -> str :
         pass
 
     @abstractmethod
@@ -41,6 +41,14 @@ class ObjectStore(ABC):
         pass
                 
     @abstractmethod
+    def update_refs(self, oid_update: Dict[str, int]) -> None:
+        pass
+        
+    @abstractmethod
+    def update_ref(self, oid: str, update: int) -> None:
+        pass
+        
+    @abstractmethod
     def get(self, oid: str) -> Any:
         pass
 
@@ -50,6 +58,7 @@ class PlasmaStore(ObjectStore):
         self.manager = manager
         self.shared_ref_dict = manager.dict()
         self.shared_ref_lock_dict = manager.dict()
+        self.vdict = manager.dict()
         self.mem_size = mem_size
 
     def init_thread(self) -> None:
@@ -61,12 +70,12 @@ class PlasmaStore(ObjectStore):
     def shutdown(self) -> None:
         stop_plasma(self.plasma_store)
         
-    def put(self, o: Any) -> str :    
-        oid = self.client.put(jsonify(o))
+    def put(self, oid: str, o: Any) -> str :    
+        vid = self.client.put(jsonify(o))
+        self.vdict[oid] = vid
         logger.debug(format_message("PlasmaStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
         self.shared_ref_lock_dict[oid] = self.manager.Lock()
         self.shared_ref_dict[oid] = 0
-        return oid
 
     def increment_ref(self, oid: str) -> None:
         with self.shared_ref_lock_dict[oid]:
@@ -75,6 +84,23 @@ class PlasmaStore(ObjectStore):
             self.shared_ref_dict[oid] = val
             logger.debug(format_message("PlasmaStore.increment_ref", "incrementing object ref count", {"oid": oid, "val": val}))
         
+    def update_refs(self, oid_update: Dict[str, int]) -> None:
+        for oid, update in oid_update.items():
+            self.update_ref(oid, update)
+
+    def update_ref(self, oid: str, update: int) -> None:
+        with self.shared_ref_lock_dict[oid]:
+            val = self.shared_ref_dict[oid]
+            val += update
+            if val == 0:
+                logger.debug(format_message("PlasmaStore.decrement_ref", "deleting object", {"oid": oid}))
+                self.client.delete([self.vdict[oid]])
+                del self.shared_ref_dict[oid]
+                del self.shared_ref_lock_dict[oid]
+                del self.vdict[oid]
+            else:
+                self.shared_ref_dict[oid] = val
+                
     def decrement_ref(self, oid: str) -> None:
         with self.shared_ref_lock_dict[oid]:
             val = self.shared_ref_dict[oid]
@@ -83,7 +109,7 @@ class PlasmaStore(ObjectStore):
             
             if val == 0:
                 logger.debug(format_message("PlasmaStore.decrement_ref", "deleting object", {"oid": oid}))
-                self.client.delete([oid])
+                self.client.delete([self.vdict[oid]])
                 del self.shared_ref_dict[oid]
                 del self.shared_ref_lock_dict[oid]
             else:
@@ -91,7 +117,7 @@ class PlasmaStore(ObjectStore):
                 
     def get(self, oid: str) -> Any:
         logger.debug(format_message("PlasmaStore.get", "getting object from shared memory store", {"oid": oid}))
-        return unjsonify(self.client.get(oid))
+        return unjsonify(self.client.get(self.vdict[oid]))
 
     
 class SimpleStore(ObjectStore):
@@ -110,8 +136,7 @@ class SimpleStore(ObjectStore):
     def shutdown(self):
         pass
         
-    def put(self, o: Any) -> str :    
-        oid = str(uuid1())
+    def put(self, oid: str, o: Any) -> str :    
         self.store[oid] = o
         logger.debug(format_message("SimpleStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
         self.shared_ref_lock_dict[oid] = self.manager.Lock()
@@ -125,6 +150,22 @@ class SimpleStore(ObjectStore):
             self.shared_ref_dict[oid] = val
             logger.debug(format_message("SimpleStore.increment_ref", "incrementing object ref count", {"oid": oid, "val": val}))
         
+    def update_refs(self, oid_update: Dict[str, int]) -> None:
+        for oid, update in oid_update.items():
+            self.update_ref(oid, update)
+
+    def update_ref(self, oid: str, update: int) -> None:
+        with self.shared_ref_lock_dict[oid]:
+            val = self.shared_ref_dict[oid]
+            val += update
+            if val == 0:
+                logger.debug(format_message("SimpleStore.decrement_ref", "deleting object", {"oid": oid}))
+                del self.store[oid]
+                del self.shared_ref_dict[oid]
+                del self.shared_ref_lock_dict[oid]
+            else:
+                self.shared_ref_dict[oid] = val
+                
     def decrement_ref(self, oid: str) -> None:
         with self.shared_ref_lock_dict[oid]:
             val = self.shared_ref_dict[oid]

@@ -31,6 +31,7 @@ class Node:
     """
     o: Any
     node_id: str
+    names: Set[str]
     depends_on: Dict[str, Set[str]] = field(default_factory=dict)
     subnode_depends_on: Dict[str, Set[str]] = field(default_factory=dict)
     start_time: float = -1
@@ -40,34 +41,25 @@ class Node:
         return self.o
 
 
-TaskType = Tuple[Node, ReturnType, ReturnType]
+TaskType = Node
 
 
 @dataclass
 class NodeMetadata:
     """
     :attr refs: a set of node_ids that depends on it
-    :type refs: Set[str]
     :attr subnode_refs: a set of node_ids whose subnode depends on it
-    :type subnode_refs: Set[str]
     :attr depends: a map from node_id to a dict where the key is node_id that it depends on and the value is an iterable that returns a list of keys
-    :type depends: dict[str, iterable[str]]
     :attr subnode_depends: a map from node_id to a dict where the key is node_id that its subnodes depends on and the value is an iterable that returns a list of keys
-    :type subnode_depends: dict[str, iterable[str]]
-    :attr nodes:
-    :type nodes: dict[str, Node]
-    :attr results: a map from node_id to partial or complete results of the nodes that it depends on. These object are store in memory. To ignore the result, set dependencies to empty iterable.
-    :type results: dict[str, dict[str, any]]
-    :attr subnode_results: a map from node_id to partial or complete results of the nodes that its subnodes depends on. These object are store in memory. To ignore the result, set dependencies to empty iterable.
-    :type subnode_results: dict[str, dict[str, any]]
     """
     refs: Set[str] = field(default_factory=set)
     subnode_refs: Set[str] = field(default_factory=set)
     depends: int = 0
     subnode_depends: int = 0
-    results: Dict[str, Either[Any, Any]] = field(default_factory=dict)
-    subnode_results: Dict[str, Either[Any, Any]] = field(default_factory=dict)
 
+
+def gen_oid(node_id: str, name: str) -> str:
+    return f"{node_id}/{name}"
 
 class NodeMap:
     """
@@ -139,10 +131,10 @@ class NodeMap:
                 logger.debug(format_message("add_node", lambda: f"add {node.node_id} to subnode refs of {node_id}", lambda: vars(meta)))
 
         if not is_hold and len(node.depends_on) == 0:
-            self.put_ready_queue((node, {}, {}))
+            self.put_ready_queue(node)
 
     def put_ready_queue(self, task: TaskType) -> None:
-        node, _, _ = task
+        node = task
         logger.info(f"task added to ready queue {node.node_id}")
         self.node_ready_time[node.node_id] = time.time()
         self.ready_queue.put(task)
@@ -154,50 +146,52 @@ class NodeMap:
         
         node = self.nodes[node_id]
         meta = self.meta[node_id]
+        names = node.names # the vars returned by this node
         refs = meta.refs
         subnode_refs = meta.subnode_refs
         logger.debug(format_message("complete_node", node_id, {"refs": refs, "subnode_refs": subnode_refs}))
 
         oids : Set[str] = set()
-        
+
+        logger.debug(format_message("complete_node", node_id, {"names": names}))
         # put results in object store
         if isinstance(result, Left):
-            oid = self.object_store.put(result)
-            result_oid = lambda _: oid
-            # Increment reference count so that other processes cannot reduce the ref count to 0 before we finished adding them to all results or subnode_results of their refs and subnode_refs.
-            self.object_store.increment_ref(oid)
-            oids.add(oid)
+            for name in names:
+                oid = gen_oid(node_id, name)
+                self.object_store.put(oid, result)
+                # Increment reference count so that other processes cannot reduce the ref count to 0 before we finished adding them to all results or subnode_results of their refs and subnode_refs.
+                self.object_store.increment_ref(oid)
+                oids.add(oid)
         else:
             result_dict = result.value
-            result_oid_dict = {}
-            for k, v in result_dict.items():
-                void = self.object_store.put(v)
-                result_oid_dict[k] = void
+            for name in names:
+                oid = gen_oid(node_id, name)
+                self.object_store.put(oid, result_dict[name])
                 # same as above
-                self.object_store.increment_ref(void)
-                oids.add(void)
-            result_oid = lambda x: result_oid_dict[x]
+                self.object_store.increment_ref(oid)
+                oids.add(oid)
         
         for ref in subnode_refs | refs:
             with self.node_metadata(ref) as refmeta:
                 refnode = self.nodes[ref]
+                oid_incr : Dict[str, int] = {}
                 if ref in subnode_refs:
                     refnode_subnode_depends_on = refnode.subnode_depends_on[node_id]
                     for name in refnode_subnode_depends_on:
-                        oid = result_oid(name)
-                        refmeta.subnode_results[name] = oid
-                        self.object_store.increment_ref(oid)
+                        oid = gen_oid(node_id, name)
+                        oid_incr[oid] = oid_incr.get(oid, 0) + 1
                     refmeta.subnode_depends -= 1
                 if ref in refs:
                     refnode_depends_on = refnode.depends_on[node_id]
                     for name in refnode_depends_on:
-                        oid = result_oid(name)
-                        refmeta.results[name] = oid
-                        self.object_store.increment_ref(oid)
+                        oid = gen_oid(node_id, name)
+                        oid_incr[oid] = oid_incr.get(oid, 0) + 1
                     refmeta.depends -= 1
 
+                self.object_store.update_refs(oid_incr)
+
                 if refmeta.depends == 0 and refmeta.subnode_depends == 0:
-                    task = (self.nodes[ref], refmeta.results, refmeta.subnode_results)
+                    task = self.nodes[ref]
                     # If we didn't increment the ref count of oids that are used in this task when those oids are generated, some other process that grabs this task could reduce the ref count to 0 and cause the object to be deleted from the object store before we finish adding it to other refs and subnode_refs.
                     # Adding tasks only when all refs and subnode_refs are added to will not work without locking the lock because more than one processes may progress to this block at the same time causing creating duplicate tasks.
                     self.put_ready_queue(task)
@@ -242,15 +236,15 @@ class NodeMap:
 
     def get_next_ready_node(self, *args, **kwargs) -> TaskType:
         logger.debug("NodeMap.get_next_ready_node: self.ready_queue.qsize() = %s len(self.nodes) = %s", self.ready_queue.qsize(), len(self.nodes))
-        node, results, subnode_results = self.ready_queue.get(*args, **kwargs)
+        node = self.ready_queue.get(*args, **kwargs)
         logger.debug("NodeMap.get_next_ready_node: node = %s self.end_of_queue = %s", node, self.end_of_queue)
         if node.o == self.end_of_queue:
-            self.ready_queue.put((node, results, subnode_results))
+            self.ready_queue.put(node)
         self.node_start_time[node.node_id] = time.time()
-        return node, results, subnode_results
+        return node
 
     def close(self) -> None:
-        self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
+        self.ready_queue.put(Node(self.end_of_queue, f"end_of_queue@{uuid1()}", set()))
 
     # def empty(self):
     #     with self.lock:
@@ -267,26 +261,28 @@ class DependentQueue:
     def init_thread(self) -> None:
         self.node_map.init_thread()
         
-    def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, is_hold: bool=False) -> str:
+    def put(self, o : Any, job_id:Optional[str]=None, depends_on:Dict[str, Set[str]]={}, subnode_depends_on:Dict[str, Set[str]]={}, names:Set[str]=set(), is_hold: bool=False) -> str:
         if job_id is None:
             job_id =  str(uuid1())
-        logger.info(format_message("DependentQueue.put", "putting a task on the queue", {"task_id": job_id, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on, "is_hold": is_hold}))
-        node = Node(o, node_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on)
+        logger.info(format_message("DependentQueue.put", "putting a task on the queue", {"task_id": job_id, "depends_on": depends_on, "subnode_depends_on": subnode_depends_on, "names": names, "is_hold": is_hold}))
+        node = Node(o, node_id=job_id, depends_on=depends_on, subnode_depends_on=subnode_depends_on, names=names)
         self.node_map.add_node(node, is_hold=is_hold)
         return node.node_id
 
     def get(self, *args, **kwargs) -> DTask:
-        def retrieve_object(oid):
+        def retrieve_object(oid: str) -> Any:
             obj = self.node_map.object_store.get(oid)
             self.node_map.object_store.decrement_ref(oid)
             return obj
         
-        def retrieve_objects(result_oid_dict):
-            return {k: retrieve_object(v) for k,v in result_oid_dict.items()}
+        def retrieve_objects(result_oid_dict : Dict[str, Set[str]]) -> Dict[str, Any]:
+            return {k: retrieve_object(gen_oid(v, k)) for v,ks in result_oid_dict.items() for k in ks}
             
-        node, results, subnode_results = self.node_map.get_next_ready_node(*args, **kwargs)
+        node = self.node_map.get_next_ready_node(*args, **kwargs)
+        results = retrieve_objects(node.depends_on)
+        subnode_results = retrieve_objects(node.subnode_depends_on)
         logger.debug(f"DependentQueue.get: node = %s, results = %s, subnode_results = %s", node, results, subnode_results)
-        return node.get(), retrieve_objects(results), retrieve_objects(subnode_results), node.node_id
+        return node.get(), results, subnode_results, node.node_id
         
     def complete(self, node_id: str, x: ResultType) -> None:
         self.node_map.complete_node(node_id, x)

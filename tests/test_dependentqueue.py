@@ -17,8 +17,8 @@ def test_dep(manager, object_store):
         dq = DependentQueue(manager, None, object_store)
         dq.init_thread()
 
-        id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id3 = dq.put(3, names={"a"})
+        id2 = dq.put(2, depends_on={id3: {"a"}}, names={"b"})
         id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
         
         n, r, sr, f1 = dq.get(block=True)
@@ -41,8 +41,8 @@ def test_dep_error(manager, object_store):
         dq = DependentQueue(manager, None, object_store)
         dq.init_thread()
 
-        id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id3 = dq.put(3, names={"a"})
+        id2 = dq.put(2, depends_on={id3: {"a"}}, names={"b"})
         id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
         
         n, r, sr, f1 = dq.get(block=True)
@@ -58,8 +58,8 @@ def test_dep_error(manager, object_store):
         dq = DependentQueue(manager, None, object_store)
         dq.init_thread()
 
-        id3 = dq.put(3)
-        id2 = dq.put(2, depends_on={id3: {"a"}})
+        id3 = dq.put(3, names={"a"})
+        id2 = dq.put(2, depends_on={id3: {"a"}}, names={"b"})
         id1 = dq.put(1, depends_on={id3: {"a"}, id2: {"b"}})
         
         n, r, sr, f1 = dq.get(block=True)
