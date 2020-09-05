@@ -373,11 +373,13 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
         var = spec.var
         subspec = spec.sub
         subnode_ret_prefix = ret_prefix + ["@map"]
+        free_names_sub_with_possibly_var = free_names(subspec)
+        var_in_sub = var in free_names_sub_with_possibly_var
+        free_names_sub = free_names_sub_with_possibly_var - {var}
+        subnode_env = get_submap(env, free_names_sub)
+        subnode_data = get_submap(data, free_names_sub)
         if isinstance(coll_value, NameValue) and (coll_name := coll_value.name) not in data:
             coll_source = env[coll_name]
-            free_names_sub = free_names(subspec) - {var}
-            subnode_env = get_submap(env, free_names_sub)
-            subnode_data = get_submap(data, free_names_sub)
             task: IdentifiedTask = DynamicMap(ret_prefix_to_str(subnode_ret_prefix, False), var, coll_name, subspec, subnode_data, ret_prefix, level)
             dep = {coll_source: {coll_name}}
             enqueue_task(queue, task, {**dep, **hold_dep}, inverse_dict(subnode_env))
@@ -390,15 +392,12 @@ def generate_tasks(queue: DependentQueue, spec: AbsSpec, data: ReturnType, env: 
             logger.debug(format_message("generate_tasks", "evaluate_value call ret val", {"data": data, "coll_value": coll_value, "coll": coll}))
             
             for i, row in enumerate(coll.value):
-                data_sub = {**data, var: Right(row)}
+                subnode_data_with_possibly_var = {**subnode_data, **({var: Right(row)} if var_in_sub else {})}
                 subnode_ret_prefix_i = subnode_ret_prefix + [i]
                 if level > 0:
-                    generate_tasks(queue, subspec, data=data_sub, env=env, ret_prefix=subnode_ret_prefix_i, hold=hold, level=level-1)
+                    generate_tasks(queue, subspec, data=subnode_data_with_possibly_var, env=env, ret_prefix=subnode_ret_prefix_i, hold=hold, level=level-1)
                 else:
-                    free_names_sub = free_names(subspec)
-                    subnode_env = get_submap(env, free_names_sub - {var})
-                    subnode_data = get_submap(data_sub, free_names_sub)
-                    task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, subnode_data, subnode_ret_prefix_i)
+                    task = Seq(ret_prefix_to_str(subnode_ret_prefix_i, False), subspec, subnode_data_with_possibly_var, subnode_ret_prefix_i)
                     logger.info(format_message("generate_tasks", "generating Seq task", {
                         "id": ret_prefix_to_str(subnode_ret_prefix_i, False),
                         "data": lambda: dict_size(subnode_data)
