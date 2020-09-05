@@ -241,7 +241,9 @@ class NodeMap:
                 "finish_time": datetime.datetime.fromtimestamp(node_finish_time),
                 "ready_to_start": nst - nrt,
                 "start_to_complete": node_complete_time - nst,
-                "complete_to_finish": node_finish_time - node_complete_time
+                "complete_to_finish": node_finish_time - node_complete_time,
+                "remaining (estimate)": lambda: len(self.nodes),
+                "ready (estimate)": lambda: self.ready_queue.qsize()
             }))
 
         
