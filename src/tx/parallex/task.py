@@ -6,13 +6,15 @@ from functools import partial
 import builtins
 from tx.functional.either import Left, Right, Either
 from tx.functional.maybe import Just, Nothing
-from .dependentqueue import DependentQueue, ResultType, ReturnType, RR
+from .dependentqueue import DependentQueue, ResultType, ReturnType
 from .utils import mappend
 from .spec import AbsSpec, LetSpec, MapSpec, CondSpec, PythonSpec, SeqSpec, RetSpec, TopSpec, AbsValue, NameValue, DataValue, ret_prefix_to_str, free_names, bound_names, sort_tasks, preproc_tasks
 from tx.readable_log import format_message, getLogger
-from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar, Union
+from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar, Union, TextIO
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from .serialization import jsonify
+import json
 import pickle
 
 logger = getLogger(__name__, logging.INFO)
@@ -33,24 +35,30 @@ class AbsTask(ABC):
 class IdentifiedTask(AbsTask):
     task_id: str
     
+
+def write_output(output, obj):
+    objjsonified = jsonify(obj)
+    logger.info(format_message("write_output", "jsonified object to", {"obj jsonified as": objjsonified}))
+    output.write(json.dumps(objjsonified) + "\n")
+
 @dataclass
 class BaseTask(IdentifiedTask):
     log_error: ClassVar[bool] = False
     
-    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue, output: TextIO) -> ResultType:
         logger.debug(format_message("BaseTask.run", "start", {"results": results}))
         try:
-            return mbind(self.baseRun, results, subnode_results, queue, log_error=self.log_error)
+            return mbind(self.baseRun, results, subnode_results, queue, output, log_error=self.log_error)
         except Exception as e:
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
-            queue.put_output({":error:": Right(err)})
+            write_output(output, {":error:": Right(err)})
             queue.close()
             raise
             
 
     @abstractmethod
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
         pass
 
 
@@ -64,7 +72,7 @@ class Task(BaseTask):
     args: Dict[int, Any]
     kwargs: Dict[str, Any]
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
         try:
             logger.debug(format_message("Task.baseRun", "start", {"results": results}))
             mod = import_module(self.mod) if self.mod != "" else builtins
@@ -80,7 +88,7 @@ class Task(BaseTask):
             err = (str(e), traceback.format_exc())
             logger.error(str(err))
             result = Left(err)
-        return {}, Right({self.name: result})
+        return Right({self.name: result})
 
 
 @dataclass
@@ -102,7 +110,7 @@ class DynamicMap(BaseTask):
     level: int
     log_error: ClassVar[bool] = True
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicMap.baseRun: put hold task on queue %s", hold_id)
         logger.debug(format_message("DynamicMap.baseRun", "enqueue call", {"results": results, "results[self.coll_name]": results[self.coll_name]}))
@@ -116,9 +124,9 @@ class DynamicMap(BaseTask):
             hold={hold_id},
             level=self.level
         )
-        queue.complete(hold_id, {}, Right({}))
+        queue.complete(hold_id, Right({}))
         logger.debug("DynamicMap.baseRun: remove hold task from queue %s", hold_id)
-        return {}, Right({})
+        return Right({})
 
 
 @dataclass
@@ -131,7 +139,7 @@ class DynamicGuard(BaseTask):
     level: int
     log_error: ClassVar[bool] = True
     
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
         hold_id = queue.put(Hold(), is_hold=True)
         logger.debug("DynamicCond.baseRun: put hold task on queue %s", hold_id)
         enqueue(
@@ -144,9 +152,9 @@ class DynamicGuard(BaseTask):
             hold={hold_id},
             level=self.level
         )
-        queue.complete(hold_id, {}, Right({}))
+        queue.complete(hold_id, Right({}))
         logger.debug("DynamicCond.baseRun: remove hold task from queue %s", hold_id)
-        return {}, Right({})
+        return Right({})
     
 
 @dataclass
@@ -154,8 +162,8 @@ class DynamicLet(BaseTask):
     name: str
     obj_name: str
     
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
-        return {}, Right({self.name: results[self.obj_name]})
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
+        return Right({self.name: results[self.obj_name]})
 
 
 @dataclass
@@ -163,8 +171,8 @@ class Let(BaseTask):
     name: str
     obj: Either[Any, Any]
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
-        return {}, Right({self.name: self.obj})
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
+        return Right({self.name: self.obj})
 
     
 @dataclass
@@ -172,8 +180,9 @@ class DynamicRet(IdentifiedTask):
     obj_name: str
     ret_prefix: List[Any]
     
-    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
-        return {ret_prefix_to_str(self.ret_prefix): results[self.obj_name]}, Right({})
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue, output: TextIO) -> ResultType:
+        write_output(output, {ret_prefix_to_str(self.ret_prefix): results[self.obj_name]})
+        return Right({})
 
 
 @dataclass
@@ -181,8 +190,9 @@ class Ret(IdentifiedTask):
     obj: Either[Any, Any]
     ret_prefix: List[Any]
 
-    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue) -> RR:
-        return {ret_prefix_to_str(self.ret_prefix): self.obj}, Right({})
+    def run(self, results: ReturnType, subnode_results: ReturnType, queue: DependentQueue, output: TextIO) -> ResultType:
+        write_output(output, {ret_prefix_to_str(self.ret_prefix): self.obj})
+        return Right({})
 
     
 @dataclass
@@ -193,9 +203,9 @@ class Seq(BaseTask):
     task_id: str
     log_error: ClassVar[bool] = True
 
-    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue) -> RR:
+    def baseRun(self, results: Dict[str, Any], subnode_results: Dict[str, Any], queue: DependentQueue, output: TextIO) -> ResultType:
         data = {**self.data, **{name: Right(value) for name, value in results.items()}}
-        return evaluate(self.spec, data, self.ret_prefix)
+        return evaluate(self.spec, data, self.ret_prefix, output)
 
     
 @dataclass
@@ -219,64 +229,60 @@ def evaluate_value(data: ReturnType, arg: AbsValue) -> Either[Any, Any]:
         return Left(f"unsupported value {arg}")
 
 
-def evaluate(spec: AbsSpec, data: ReturnType, ret_prefix: List[Any]) -> RR:
+def evaluate(spec: AbsSpec, data: ReturnType, ret_prefix: List[Any], output: TextIO) -> ResultType:
     logger.debug(format_message("evaluate", "executing sequentially", {"spec": spec, "data": data, "ret_prefix": ret_prefix}))
     if isinstance(spec, LetSpec):
         name = spec.name
         obj = evaluate_value(data, spec.obj)
-        return {}, obj.bind(lambda _: {name: obj})
+        return obj.bind(lambda _: {name: obj})
     elif isinstance(spec, MapSpec):
         coll_value = spec.coll
         var = spec.var
         subspec = spec.sub
         coll = evaluate_value(data, coll_value)
         if isinstance(coll, Left):
-            return {":error:": Right(coll.value)}, Right({})
+            write_output(output, {":error:": Right(coll.value)})
+            return Right({})
         coll = coll.value
-        ret = {}
         for i, row in enumerate(coll):
             data2 = {**data, var:Right(row)}
-            sub_ret, sub_result = evaluate(subspec, data2, ret_prefix=ret_prefix + [i])
-            ret.update(sub_ret)
+            sub_result = evaluate(subspec, data2, ret_prefix=ret_prefix + [i], output=output)
             if isinstance(sub_result, Left):
-                return ret, sub_result
-        return ret, Right({}) # ignore all sub_results
+                return sub_result
+        return Right({}) # ignore all sub_results
     elif isinstance(spec, CondSpec):
         cond_value = spec.on
         then_spec = spec.then
         else_spec = spec._else
         cond = evaluate_value(data, cond_value)
         if isinstance(cond, Left):
-            return {":error:": Right(cond.value)}, Right({})
+            write_output(output, {":error:": Right(cond.value)})
+            return Right({})
         cond = cond.value
         if cond:
-            return evaluate(then_spec, data, ret_prefix=ret_prefix)
+            return evaluate(then_spec, data, ret_prefix=ret_prefix, output=output)
         else:
-            return evaluate(else_spec, data, ret_prefix=ret_prefix)
+            return evaluate(else_spec, data, ret_prefix=ret_prefix, output=output)
     elif isinstance(spec, TopSpec):
         subs = spec.sub
         subs_sorted = sort_tasks(set(data.keys()), subs)
-        ret = {}
         for sub in subs_sorted:
-            sub_ret, sub_result = evaluate(sub, data, ret_prefix=ret_prefix)
-            ret = mappend(ret, sub_ret)
+            sub_result = evaluate(sub, data, ret_prefix=ret_prefix, output=output)
             if isinstance(sub_result, Left):
-                return ret, sub_result
+                return sub_result
             data = {**data, **sub_result.value}
-        return ret, Right({})
+        return Right({})
     elif isinstance(spec, SeqSpec):
         subs = spec.sub
         subs_sorted = sort_tasks(set(data.keys()), subs)
-        ret = {}
         result : ResultType = {}
         for sub in subs_sorted:
-            sub_ret, sub_result = evaluate(sub, data, ret_prefix=ret_prefix)
-            ret = mappend(ret, sub_ret)
+            sub_result = evaluate(sub, data, ret_prefix=ret_prefix, output=output)
             if isinstance(sub_result, Left):
-                return ret, sub_result
+                return sub_result
             data = {**data, **sub_result.value}
             result.update(sub_result.value)
-        return ret, Right(result)
+        return Right(result)
     elif isinstance(spec, PythonSpec):
         try:
             mod = import_module(spec.mod) if spec.mod != "" else builtins
@@ -286,7 +292,7 @@ def evaluate(spec: AbsSpec, data: ReturnType, ret_prefix: List[Any]) -> RR:
             args0 = {k: evaluate_value(data, v) for k, v in spec.params.items()}
             errors = [x for x in args0.values() if isinstance(x, Left)]
             if len(errors) > 0:
-                return {}, Right({name: errors[0]})
+                return Right({name: errors[0]})
             args2 = {k: v.value for k, v in args0.items()}
             args, kwargs = split_args(args2)
             logger.debug(format_message("evaluate", "PythonSpec before", {"spec.name": spec.name, "spec.mod": spec.mod, "func": lambda: func, "spec.func" : spec.func, "spec.params": spec.params, "args": args, "kwargs": kwargs}))
@@ -298,24 +304,24 @@ def evaluate(spec: AbsSpec, data: ReturnType, ret_prefix: List[Any]) -> RR:
         except Exception as e:
             result = Left((str(e), traceback.format_exc()))
         logger.debug(format_message("evaluate", "PythonSpec", {"result": result}))
-        return {}, Right({spec.name: result})
+        return Right({spec.name: result})
     elif isinstance(spec, RetSpec):
         obj_value = spec.obj
         obj = evaluate_value(data, obj_value)
-        return {ret_prefix_to_str(ret_prefix): obj}, Right({})
+        write_output(output, {ret_prefix_to_str(ret_prefix): obj})
+        return Right({})
     else:
         raise RuntimeError(f'unsupported spec type {spec}')
     
     
-def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], RR], params: ReturnType, subnode_results: ReturnType, queue: DependentQueue, log_error: bool) -> RR:
+def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue, TextIO], ResultType], params: ReturnType, subnode_results: ReturnType, queue: DependentQueue, output: TextIO, log_error: bool) -> ResultType:
     resultv = {}
     subnode_resultv = {}
     for k, v in params.items():
         if isinstance(v, Left):
             resultj = v
-            ret: Dict[str, Any] = {}
             if log_error:
-                queue.put_output({":error:": Right(v.value)})
+                write_output(output, {":error:": Right(v.value)})
             break
         else:
             resultv[k] = v.value
@@ -323,16 +329,15 @@ def mbind(job_run : Callable[[Dict[str, Any], Dict[str, Any], DependentQueue], R
         for k, v in subnode_results.items():
             if isinstance(v, Left):
                 resultj = v
-                ret = {}
                 if log_error:
-                    queue.put_output({":error:": Right(v.value)})
+                    write_output(output, {":error:": Right(v.value)})
                 break
             else:
                 subnode_resultv[k] = v.value
         else:
             # logger.debug(f"mbind: running {job_run}")
-            ret, resultj = job_run(resultv, subnode_resultv, queue)
-    return ret, resultj
+            resultj = job_run(resultv, subnode_resultv, queue, output)
+    return resultj
 
                         
 def split_args(args0: Dict[Union[int, str], Any]) -> Tuple[Dict[int, Any], Dict[str, Any]]:

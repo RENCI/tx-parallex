@@ -5,12 +5,13 @@ import json
 from jsonschema import validate
 import os.path
 import logging
-from tempfile import mkstemp
+from tempfile import mkstemp, mkdtemp
 import os
+import shutil
 from .dependentqueue import DependentQueue
 from .task import enqueue, EndOfQueue, either_data
 from .process import work_on
-from .io import write_to_disk, read_from_disk
+from .io import read_from_disk, merge_files
 from .python import python_to_spec
 from .spec import dict_to_spec
 from .objectstore import PlasmaStore, SimpleStore
@@ -56,11 +57,11 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
     if validate_spec:
         validate(instance=spec, schema=schema)
     if output_path is None:
-        fd, temp_path = mkstemp()
-        os.close(fd)
+        temp_dir = mkdtemp()
     else:
-        temp_path = output_path
-
+        output_dir = os.path.dirname(output_path)
+        temp_dir = mkdtemp(dir=output_dir)
+    
     try:
         shutdown_object_store = False
         with Manager() as manager:
@@ -77,20 +78,29 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
             job_queue = DependentQueue(manager, EndOfQueue(), object_store)
             enqueue(dict_to_spec(spec), either_data(data), job_queue, level=level)
             processes = []
+            output_paths = []
             for _ in range(number_of_workers):
-                p = Process(target=work_on, args=(job_queue, system_paths))
+                fd, path = mkstemp(dir=temp_dir)
+                os.close(fd)
+                output_paths.append(path)
+                p = Process(target=work_on, args=(job_queue, path, system_paths))
                 p.start()
                 processes.append(p)
-            p2 = Process(target=write_to_disk, args=(job_queue, temp_path))
-            p2.start()
-            processes.append(p2)
+                
             for p in processes:
                 p.join()
+
+            fd, temp_path = mkstemp(dir=temp_dir)
+            os.close(fd)
+
+            merge_files(output_paths, temp_path)
+                
             if output_path is None:
                 return read_from_disk(temp_path)
+            else:
+                os.rename(temp_path, output_path)
 
     finally:
         if shutdown_object_store:
             object_store.shutdown()
-        if output_path is None:
-            os.remove(temp_path)
+        shutil.rmtree(temp_dir)

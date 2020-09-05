@@ -24,15 +24,15 @@ def test_dep(manager, object_store):
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Right({"a": 6}))
+        dq.complete(f1, Right({"a": 6}))
         n, r, sr, f2 = dq.get(block=True)
         assert n == 2
         assert r == {"a": 6}
-        dq.complete(f2, {}, Right({"b": 5}))
+        dq.complete(f2, Right({"b": 5}))
         n, r, sr, f = dq.get(block=True)
         assert n == 1
         assert r == {"b": 5, "a": 6}
-        dq.complete(f, {}, Right({"c": 4}))
+        dq.complete(f, Right({"c": 4}))
         n, r, sr, f = dq.get(block=True)
         assert n is None
 
@@ -48,7 +48,7 @@ def test_dep_error(manager, object_store):
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Right({"a": Left("a")}))
+        dq.complete(f1, Right({"a": Left("a")}))
         n, r, sr, f2 = dq.get(block=True)
         assert n == 2
         assert r == {"a": Left("a")}
@@ -65,7 +65,7 @@ def test_dep_error(manager, object_store):
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Left("a"))
+        dq.complete(f1, Left("a"))
         n, r, sr, f2 = dq.get(block=True)
         assert n == 2
         assert r == {"a": Left("a")}
@@ -93,7 +93,7 @@ def test_eoq(manager, object_store):
         time.sleep(1)
         logger.debug("process running")
         
-        dq.complete(f1, {}, Just({"a":6}))
+        dq.complete(f1, Just({"a":6}))
         logger.debug("queue completed")
         p.join()
         assert v.value == 2
@@ -107,7 +107,7 @@ def test_eoq_2(manager, object_store):
         n, r, sr, f1 = dq.get(block=True)
         assert n == 3
         assert r == {}
-        dq.complete(f1, {}, Just({"a": 6}))
+        dq.complete(f1, Just({"a": 6}))
 
         n, r, sr, f = dq.get(block=True)
         assert n == 2

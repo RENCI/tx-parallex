@@ -19,8 +19,6 @@ ReturnType = Dict[str, Either[Any, Any]]
 
 ResultType = Either[Any, ReturnType]
 
-RR = Tuple[ReturnType, ResultType]
-
 DTask = Tuple[Any, ReturnType, ReturnType, str]
 
 @dataclass
@@ -81,8 +79,6 @@ class NodeMap:
     :type ready_queue: Queue[Node]
     :attr lock: global lock
     :type lock: Lock
-    :attr output_queue: output of the script
-    :type output_queue: Queue[dict[str, any]]
     :attr end_of_queue: an end_of_queue object that will be put on the ready queue when the NodeMap is closed. The object must implement the __eq__ method such that every copy of the object is equal to any other copy.
     :type end_of_queue: any
     """
@@ -93,7 +89,6 @@ class NodeMap:
         self.ready_queue = manager.Queue()
         self.lock = manager.Lock()
         self.node_lock = manager.dict()
-        self.output_queue = manager.Queue()
         self.end_of_queue = end_of_queue
         self.manager = manager
         self.node_ready_time = manager.dict()
@@ -153,9 +148,9 @@ class NodeMap:
         self.ready_queue.put(task)
 
     # :param result: the result of the function, if it is Nothing then no result is returned
-    def complete_node(self, node_id: str, ret: ReturnType, result: ResultType) -> None:
+    def complete_node(self, node_id: str, result: ResultType) -> None:
         node_complete_time = time.time()
-        logger.debug(format_message("complete_node", node_id, {"ret": ret, "result": result}))
+        logger.debug(format_message("complete_node", node_id, {"result": result}))
         
         node = self.nodes[node_id]
         meta = self.meta[node_id]
@@ -210,9 +205,6 @@ class NodeMap:
         for oid in oids:
             self.object_store.decrement_ref(oid)
 
-        logger.debug("complete_node: putting %s on output_queue", ret)
-        self.put_output(ret)
-            
         with self.lock:
             logger.debug("complete_node: deleting %s from self.meta", node_id)
             del self.meta[node_id]
@@ -257,15 +249,8 @@ class NodeMap:
         self.node_start_time[node.node_id] = time.time()
         return node, results, subnode_results
 
-    def get_next_output(self) -> Maybe[Any]:
-        return self.output_queue.get()
-
-    def put_output(self, o: Any) -> None:
-        self.output_queue.put(Just(o))
-
     def close(self) -> None:
         self.ready_queue.put((Node(self.end_of_queue, f"end_of_queue@{uuid1()}"), {}, {}))
-        self.output_queue.put(Nothing)
 
     # def empty(self):
     #     with self.lock:
@@ -303,14 +288,8 @@ class DependentQueue:
         logger.debug(f"DependentQueue.get: node = %s, results = %s, subnode_results = %s", node, results, subnode_results)
         return node.get(), retrieve_objects(results), retrieve_objects(subnode_results), node.node_id
         
-    def get_next_output(self) -> Maybe[Any]:
-        return self.node_map.get_next_output()
-
-    def put_output(self, o: Any) -> None:
-        self.node_map.put_output(o)
-    
-    def complete(self, node_id: str, ret: ReturnType, x: ResultType) -> None:
-        self.node_map.complete_node(node_id, ret, x)
+    def complete(self, node_id: str, x: ResultType) -> None:
+        self.node_map.complete_node(node_id, x)
 
     def close(self) -> None:
         self.node_map.close()

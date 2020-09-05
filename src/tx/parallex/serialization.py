@@ -24,7 +24,13 @@ def jsonify(o):
         }
     elif isinstance(o, dict) and ("left" in o or "right" in o or "starred" in o or "range" in o or "json" in o):
         return {
-            "json": o
+            "json": {
+                k: jsonify(v) for k, v in o.items()
+            }
+        }
+    elif isinstance(o, dict):
+        return {
+            k: jsonify(v) for k, v in o.items()
         }
     else:
         return o
@@ -39,7 +45,9 @@ def unjsonify(o):
     elif isinstance(o, dict) and "range" in o:
         return range(unjsonify(o["range"]["start"]), unjsonify(o["range"]["stop"]), unjsonify(o["range"]["step"]))
     elif isinstance(o, dict) and "json" in o:
-        return o["json"]
+        return {k: unjsonify(v) for k, v in o["json"].items()}
+    elif isinstance(o, dict):
+        return {k: unjsonify(v) for k, v in o.items()}
     else:
         return o
 

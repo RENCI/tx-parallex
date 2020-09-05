@@ -59,16 +59,16 @@ def test_enqueue(object_store):
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"].value
         assert r == {}
-        dq.complete(f, {}, Just({"a":6}))
+        dq.complete(f, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"].value
         assert r == {}
-        dq.complete(f, {}, Just({"a":6}))
+        dq.complete(f, Just({"a":6}))
         n, r, sr, f = dq.get()
         assert "x" in n.kwargs
         assert n.kwargs["x"] in data["inputs"].value
-        dq.complete(f, {}, Just({"a":6}))
+        dq.complete(f, Just({"a":6}))
         n, r, sr, f = dq.get()
         print(n)
         assert isinstance(n, EndOfQueue)
@@ -116,15 +116,15 @@ def test_enqueue_dependent(object_store):
         n, r, sr, f1 = dq.get()
         print(n)
         assert r == {}
-        dq.complete(f1, {}, Right({"c":1}))
+        dq.complete(f1, Right({"c":1}))
         n, r, sr, f2 = dq.get()
         print(n)
         assert r == {"c":1}
-        dq.complete(f2, {}, Right({"b": 2}))
+        dq.complete(f2, Right({"b": 2}))
         n, r, sr, f = dq.get()
         print(n)
         assert r == {"b":2}
-        dq.complete(f, {}, Right({"a": 3}))
+        dq.complete(f, Right({"a": 3}))
         n, r, sr, f = dq.get()
         print(n)
         assert isinstance(n, EndOfQueue)
