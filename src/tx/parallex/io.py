@@ -4,7 +4,7 @@ from .utils import mappend
 from tx.functional.maybe import Nothing
 from tx.readable_log import format_message, getLogger
 from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar
-from .serialization import jsonify, unjsonify
+import jsonpickle
 
 logger = getLogger(__name__, logging.INFO)
 
@@ -15,7 +15,7 @@ def write_to_disk(dqueue, path):
             if output == Nothing:
                 break
             else:
-                db.write(jsonify(output.value) + "\n")
+                db.write(jsonpickle.encode(output.value) + "\n")
 
 
 def merge_files(inputs, path):
@@ -36,7 +36,7 @@ def read_from_disk(path):
     obj = {}
     with open(path) as db:
         for line in db:
-            obj = mappend(obj, unjsonify(json.loads(line)))
+            obj = mappend(obj, jsonpickle.decode(line))
     return obj
 
         

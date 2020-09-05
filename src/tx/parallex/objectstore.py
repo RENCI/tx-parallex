@@ -1,10 +1,10 @@
 import logging
 from tx.readable_log import getLogger, format_message
-from .serialization import jsonify, unjsonify
 from abc import ABC, abstractmethod
 from multiprocessing import Manager
 from uuid import uuid1
 from typing import Any, Dict
+import jsonpickle
 try:
     import pyarrow.plasma as plasma
     from .plasma import start_plasma, stop_plasma
@@ -71,7 +71,7 @@ class PlasmaStore(ObjectStore):
         stop_plasma(self.plasma_store)
         
     def put(self, oid: str, o: Any) -> str :    
-        vid = self.client.put(jsonify(o))
+        vid = self.client.put(jsonpickle.encode(o))
         self.vdict[oid] = vid
         logger.debug(format_message("PlasmaStore.put", "putting object into shared memory store", {"o": o, "oid": oid}))
         self.shared_ref_lock_dict[oid] = self.manager.Lock()
@@ -117,7 +117,7 @@ class PlasmaStore(ObjectStore):
                 
     def get(self, oid: str) -> Any:
         logger.debug(format_message("PlasmaStore.get", "getting object from shared memory store", {"oid": oid}))
-        return unjsonify(self.client.get(self.vdict[oid]))
+        return jsonpickle.decode(self.client.get(self.vdict[oid]))
 
     
 class SimpleStore(ObjectStore):

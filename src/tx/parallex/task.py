@@ -13,7 +13,7 @@ from tx.readable_log import format_message, getLogger
 from typing import List, Any, Dict, Tuple, Set, Callable, TypeVar, ClassVar, Union, TextIO
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from .serialization import jsonify
+import jsonpickle
 import json
 import pickle
 
@@ -37,9 +37,9 @@ class IdentifiedTask(AbsTask):
     
 
 def write_output(output, obj):
-    objjsonified = jsonify(obj)
-    logger.info(format_message("write_output", "jsonified object to", {"obj jsonified as": objjsonified}))
-    output.write(json.dumps(objjsonified) + "\n")
+    objjsonified = jsonpickle.encode(obj)
+    logger.debug(format_message("write_output", "jsonified object to", {"obj jsonified as": objjsonified}))
+    output.write(objjsonified + "\n")
 
 @dataclass
 class BaseTask(IdentifiedTask):
