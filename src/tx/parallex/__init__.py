@@ -59,11 +59,16 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
     if output_path is None:
         temp_dir = mkdtemp()
     else:
+        with open(output_path, "w"):
+            pass
         output_dir = os.path.dirname(output_path)
         temp_dir = mkdtemp(dir=output_dir)
+        
+    shutdown_object_store = False
+    temp_path = None
     
     try:
-        shutdown_object_store = False
+
         with Manager() as manager:
             if object_store is None:
                 try:
@@ -90,15 +95,18 @@ def start(number_of_workers, spec, data, system_paths, validate_spec, output_pat
             for p in processes:
                 p.join()
 
-            fd, temp_path = mkstemp(dir=temp_dir)
-            os.close(fd)
+            if output_path is None:
+                fd, temp_path = mkstemp(dir=temp_dir)
+                os.close(fd)
+            else:
+                temp_path = output_path
 
             merge_files(output_paths, temp_path)
                 
             if output_path is None:
                 return read_from_disk(temp_path)
             else:
-                os.rename(temp_path, output_path)
+                return None
 
     finally:
         if shutdown_object_store:
