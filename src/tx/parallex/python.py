@@ -1,3 +1,4 @@
+import sys
 from importlib import import_module
 from itertools import chain
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With, Expr, Yield, Pow
@@ -17,6 +18,15 @@ logger = getLogger(__name__, logging.INFO)
 AbsSpec = t.Dict[Any, Any]
 
 
+def import_module_reload(module_name):
+    if module_name in sys.modules:
+        mod = sys.modules[module_name]
+        importlib.reload(mod)
+        return mod
+    else:
+        importlib.import_module(mod)
+    
+    
 def to_mod(value: ast.expr) -> str:
     if isinstance(value, Name):
         return value.id
@@ -220,7 +230,7 @@ def python_to_spec(py: str) -> AbsSpec:
 
 def python_to_spec_seq(stmts: t.List[ast.stmt], imported_names: t.Dict[str, str] = {}) -> AbsSpec:
     importfroms = [stmt for stmt in stmts if isinstance(stmt, ImportFrom)]
-    imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
+    imported_names2 = {**imported_names, **{func : "" for func in dir(builtins)}, **{func : modname for importfrom in importfroms if (modname := importfrom.module) if (mod := import_module_reload(modname)) if (names := importfrom.names) for func in (dir(mod) if any(x.name == "*" for x in names) else [alias.name for alias in names])}}
     logger.debug(f"imported_names2 = {imported_names2}")
     assigns: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, Assign)]
     fors: t.List[ast.stmt] = [stmt for stmt in stmts if isinstance(stmt, For)]
