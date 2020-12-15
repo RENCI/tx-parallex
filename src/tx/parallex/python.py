@@ -1,5 +1,5 @@
 import sys
-from importlib import import_module
+import importlib
 from itertools import chain
 from ast import parse, Call, Name, UnaryOp, Constant, List, Dict, Return, For, Assign, If, Load, Store, keyword, Compare, BinOp, BoolOp, Add, Sub, Div, Mult, FloorDiv, Mod, MatMult, BitAnd, BitOr, BitXor, Invert, Not, UAdd, USub, LShift, RShift, And, Or, Eq, NotEq, Lt, Gt, LtE, GtE, Eq, NotEq, In, NotIn, Is, IsNot, ImportFrom, Attribute, IfExp, Subscript, Index, Tuple, Starred, With, Expr, Yield, Pow
 import ast
@@ -24,7 +24,7 @@ def import_module_reload(module_name):
         importlib.reload(mod)
         return mod
     else:
-        importlib.import_module(mod)
+        return importlib.import_module(module_name)
     
     
 def to_mod(value: ast.expr) -> str:
