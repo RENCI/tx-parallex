@@ -24,7 +24,7 @@ with open("README.md", "r") as fh:
         install_requires=[
             "more-itertools==8.2.0",
             "jsonschema==3.2.0",
-            "pyyaml==5.3.1",
+            "pyyaml==5.4",
             "tx-functional>=0.1.2",
             "graph-theory==2020.5.6.39102",
             "terminaltables==3.1.0",
